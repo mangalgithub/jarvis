@@ -13,10 +13,7 @@ class FinanceAgent:
         expenses = extract_expenses(message)
 
         if not expenses:
-            return {
-                "reply": "I could not find an expense amount in that message. Try: I spent 250 on lunch.",
-                "actions": [{"type": "expense_parse_empty"}],
-            }
+            return await self._handle_expense_query(user_id, message)
 
         collection = get_collection("expenses")
         now = datetime.now(UTC)
@@ -59,14 +56,14 @@ class FinanceAgent:
 
         logged_total = sum(expense["amount"] for expense in expenses)
         expense_lines = ", ".join(
-            f"₹{expense['amount']:g} {expense['category']} ({expense['description']})"
+            f"Rs {expense['amount']:g} {expense['category']} ({expense['description']})"
             for expense in expenses
         )
 
         return {
             "reply": (
-                f"I logged ₹{logged_total:g} in expenses: {expense_lines}. "
-                f"Today total: ₹{today_total:g}. Month total: ₹{month_total:g}."
+                f"I logged Rs {logged_total:g} in expenses: {expense_lines}. "
+                f"Today total: Rs {today_total:g}. Month total: Rs {month_total:g}."
             ),
             "actions": [
                 {
@@ -78,6 +75,101 @@ class FinanceAgent:
                 }
             ],
         }
+
+    async def _handle_expense_query(self, user_id: str, message: str):
+        period_name, start, end = self._get_query_period(message)
+
+        try:
+            expenses = await self._get_expenses_for_period(user_id, start, end)
+        except Exception as error:
+            return {
+                "reply": "I understood the expense query, but MongoDB is not reachable. Start MongoDB and try again.",
+                "actions": [
+                    {
+                        "type": "expense_query_failed",
+                        "error": str(error),
+                        "period": period_name,
+                    }
+                ],
+            }
+
+        total = sum(expense["amount"] for expense in expenses)
+
+        if not expenses:
+            return {
+                "reply": f"You have no expenses logged for {period_name}.",
+                "actions": [
+                    {
+                        "type": "expense_query_result",
+                        "period": period_name,
+                        "expenses": [],
+                        "total": 0,
+                    }
+                ],
+            }
+
+        expense_lines = "; ".join(
+            f"Rs {expense['amount']:g} on {expense['description']} ({expense['category']})"
+            for expense in expenses[:10]
+        )
+        extra_count = max(len(expenses) - 10, 0)
+        extra_note = f" Plus {extra_count} more." if extra_count else ""
+
+        return {
+            "reply": (
+                f"Your {period_name} expenses total Rs {total:g}: "
+                f"{expense_lines}.{extra_note}"
+            ),
+            "actions": [
+                {
+                    "type": "expense_query_result",
+                    "period": period_name,
+                    "expenses": expenses,
+                    "total": total,
+                }
+            ],
+        }
+
+    def _get_query_period(self, message: str):
+        normalized_message = message.lower()
+        now = datetime.now(UTC)
+
+        if "today" in normalized_message:
+            return "today", datetime.combine(now.date(), time.min, tzinfo=UTC), now
+
+        if "month" in normalized_message or "monthly" in normalized_message:
+            return "this month", datetime(now.year, now.month, 1, tzinfo=UTC), now
+
+        if "all" in normalized_message or "total" in normalized_message:
+            return "all time", None, now
+
+        return "today", datetime.combine(now.date(), time.min, tzinfo=UTC), now
+
+    async def _get_expenses_for_period(
+        self,
+        user_id: str,
+        start: datetime | None,
+        end: datetime,
+    ):
+        collection = get_collection("expenses")
+        match = {"user_id": user_id, "created_at": {"$lte": end}}
+
+        if start is not None:
+            match["created_at"]["$gte"] = start
+
+        cursor = collection.find(match).sort("created_at", -1)
+        documents = await cursor.to_list(length=100)
+
+        return [
+            {
+                "id": str(document["_id"]),
+                "amount": document["amount"],
+                "description": document["description"],
+                "category": document["category"],
+                "created_at": document["created_at"].isoformat(),
+            }
+            for document in documents
+        ]
 
     async def _get_total_for_period(self, user_id: str, start: datetime, end: datetime):
         collection = get_collection("expenses")

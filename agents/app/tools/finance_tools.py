@@ -12,7 +12,16 @@ CATEGORY_KEYWORDS = {
         "food",
         "meal",
     ],
-    "Grocery": ["grocery", "groceries", "vegetable", "milk", "fruit", "rice", "dal"],
+    "Grocery": [
+        "grocery",
+        "groceries",
+        "grocies",
+        "vegetable",
+        "milk",
+        "fruit",
+        "rice",
+        "dal",
+    ],
     "Travel": ["bus", "train", "cab", "uber", "ola", "metro", "petrol", "fuel"],
     "Shopping": ["shirt", "clothes", "shoes", "amazon", "flipkart", "shopping"],
     "Investment": ["sip", "mutual fund", "stock", "investment", "invested"],
@@ -32,7 +41,7 @@ def categorize_expense(description: str) -> str:
 
 
 def extract_expenses(text: str) -> list[dict]:
-    normalized_text = text.replace("₹", " rupees ")
+    normalized_text = text.replace("₹", " rupees ").replace("â‚¹", " rupees ")
     pattern = re.compile(
         r"(?P<amount>\d+(?:\.\d+)?)\s*(?:rs|rupees|inr)?\s*(?:on|for|in)?\s*(?P<description>[a-zA-Z][a-zA-Z\s]{0,40})?",
         re.IGNORECASE,
