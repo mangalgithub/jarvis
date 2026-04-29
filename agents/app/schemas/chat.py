@@ -8,4 +8,4 @@ class ChatRequest(BaseModel):
 
 class ChatResponse(BaseModel):
     reply: str
-    actions: list[dict] = []
+    actions: list[dict] = Field(default_factory=list)

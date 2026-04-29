@@ -1,13 +1,133 @@
+import json
+import re
+
+from app.agents.finance_agent import FinanceAgent
+from app.core.llm import LLMUnavailableError, generate_response
 from app.schemas.chat import ChatRequest, ChatResponse
+
+finance_agent = FinanceAgent()
+
+VALID_INTENTS = {
+    "expense_tracking",
+    "health_tracking",
+    "news_summary",
+    "stock_analysis",
+    "learning_help",
+    "general_chat",
+}
+
+
+def parse_intents_from_llm_response(response_text: str) -> list[str]:
+    match = re.search(r"\{.*\}", response_text, flags=re.DOTALL)
+    if not match:
+        return []
+
+    try:
+        payload = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return []
+
+    raw_intents = payload.get("intents", [])
+    if not isinstance(raw_intents, list):
+        return []
+
+    intents = [
+        intent
+        for intent in raw_intents
+        if isinstance(intent, str) and intent in VALID_INTENTS
+    ]
+
+    if "general_chat" in intents and len(intents) > 1:
+        intents = [intent for intent in intents if intent != "general_chat"]
+
+    return intents or ["general_chat"]
+
+
+async def detect_intents(message: str) -> tuple[list[str], str]:
+    prompt = f"""
+Classify the user's message into one or more Jarvis intents.
+
+Allowed intents:
+- expense_tracking: logging, querying, or summarizing expenses/spending
+- health_tracking: water, workout, protein, calories, gym, or health tracking
+- news_summary: news, headlines, India/world/current events summaries
+- stock_analysis: stocks, market, mutual funds, Nifty, Sensex, investments
+- learning_help: learning plans, courses, YouTube, AI/tech study help
+- general_chat: anything else
+
+Return only valid JSON in this exact shape:
+{{"intents":["expense_tracking"]}}
+
+User message: {message}
+"""
+
+    response_text = await generate_response(
+        prompt,
+        system_prompt=(
+            "You are an intent classifier for Jarvis. "
+            "Return strict JSON only, with no markdown or commentary."
+        ),
+        temperature=0,
+    )
+    intents = parse_intents_from_llm_response(response_text)
+
+    if not intents:
+        raise LLMUnavailableError(
+            f"LLM returned an invalid intent payload: {response_text}"
+        )
+
+    return intents, "llm"
 
 
 async def run_orchestrator(request: ChatRequest) -> ChatResponse:
+    try:
+        intents, intent_source = await detect_intents(request.message)
+    except LLMUnavailableError as error:
+        return ChatResponse(
+            reply=(
+                "I could not detect the intent because the LLM is unavailable. "
+                "Please check your Groq API key and try again."
+            ),
+            actions=[
+                {
+                    "type": "intent_detection_failed",
+                    "source": "llm",
+                    "error": str(error),
+                }
+            ],
+        )
+
+    context = {
+        "user_id": request.user_id,
+        "message": request.message,
+        "intents": intents,
+    }
+
+    if "expense_tracking" in intents:
+        result = await finance_agent.run(context)
+        return ChatResponse(
+            reply=result["reply"],
+            actions=[
+                {
+                    "type": "intent_detected",
+                    "intents": intents,
+                    "source": intent_source,
+                },
+                *result["actions"],
+            ],
+        )
+
     return ChatResponse(
-        reply=f"Jarvis received your request: {request.message}",
+        reply=(
+            "I can hear you. Finance tracking is active now; news, health, "
+            "learning, and stock agents are the next modules to wire in."
+        ),
         actions=[
             {
-                "type": "message_received",
+                "type": "intent_detected",
                 "user_id": request.user_id,
+                "intents": intents,
+                "source": intent_source,
             }
         ],
     )
