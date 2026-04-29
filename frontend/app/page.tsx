@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { Card } from "@heroui/react";
 
 type Message = {
   role: "user" | "assistant";
@@ -86,7 +88,13 @@ const starterPrompts = [
   "Category wise spending this month",
 ];
 
-const dateRangeOptions = ["today", "yesterday", "this week", "this month", "all time"];
+const dateRangeOptions = [
+  "today",
+  "yesterday",
+  "this week",
+  "this month",
+  "all time",
+];
 
 const categoryOptions = [
   "All",
@@ -108,17 +116,148 @@ function money(amount = 0) {
 }
 
 function shortDate(value?: string) {
-  if (!value) {
-    return "Today";
-  }
-
+  if (!value) return "Today";
   return new Intl.DateTimeFormat("en-IN", {
     day: "2-digit",
     month: "short",
   }).format(new Date(value));
 }
 
+function useDarkMode() {
+  const [dark, setDark] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("theme");
+    const isDark = saved === "dark";
+    setDark(isDark);
+    document.documentElement.classList.toggle("dark", isDark);
+    setMounted(true);
+  }, []);
+
+  const toggle = () => {
+    setDark((current) => {
+      const next = !current;
+      document.documentElement.classList.toggle("dark", next);
+      localStorage.setItem("theme", next ? "dark" : "light");
+      return next;
+    });
+  };
+
+  return { dark, toggle, mounted };
+}
+
+function SectionTitle({
+  title,
+  subtitle,
+  right,
+}: {
+  title: string;
+  subtitle?: string;
+  right?: ReactNode;
+}) {
+  return (
+    <div className="mb-4 flex items-start justify-between gap-3">
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white sm:text-xl">
+          {title}
+        </h2>
+        {subtitle ? (
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+            {subtitle}
+          </p>
+        ) : null}
+      </div>
+      {right ? <div className="shrink-0">{right}</div> : null}
+    </div>
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | undefined;
+}) {
+  return (
+    <Card className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 opacity-70" />
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">
+        {money(value)}
+      </p>
+    </Card>
+  );
+}
+
+function ProgressRow({
+  label,
+  valueText,
+  value,
+  max,
+  tone = "default",
+}: {
+  label: string;
+  valueText: string;
+  value: number;
+  max: number;
+  tone?: "default" | "danger" | "success";
+}) {
+  const width = max > 0 ? Math.min((value / max) * 100, 100) : 0;
+
+  const barClassName =
+    tone === "danger"
+      ? "bg-rose-500"
+      : tone === "success"
+        ? "bg-emerald-500"
+        : "bg-cyan-600";
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between gap-3 text-sm">
+        <span className="font-medium text-slate-800 dark:text-slate-200">
+          {label}
+        </span>
+        <span className="text-slate-600 dark:text-slate-400">{valueText}</span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700">
+        <div
+          className={`h-2 rounded-full ${barClassName} transition-all duration-300`}
+          style={{ width: `${Math.max(width, 3)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function PanelCard({
+  title,
+  children,
+  className = "",
+  right,
+}: {
+  title: string;
+  children: ReactNode;
+  className?: string;
+  right?: ReactNode;
+}) {
+  return (
+    <Card
+      className={`group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)] ${className}`}
+    >
+      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-cyan-500 via-sky-500 to-indigo-500 opacity-60" />
+      <SectionTitle title={title} right={right} />
+      {children}
+    </Card>
+  );
+}
+
 export default function Home() {
+  const { dark, toggle, mounted } = useDarkMode();
+
   const [messages, setMessages] = useState<Message[]>([
     {
       role: "assistant",
@@ -136,6 +275,7 @@ export default function Home() {
   const [error, setError] = useState("");
 
   const finance = dashboard?.finance;
+
   const maxCategoryTotal = useMemo(
     () =>
       Math.max(
@@ -144,6 +284,7 @@ export default function Home() {
       ),
     [finance],
   );
+
   const incomeExpenseMax = Math.max(
     finance?.summary.monthIncome || 0,
     finance?.summary.monthExpenses || 0,
@@ -163,7 +304,9 @@ export default function Home() {
         searchParams.set("category", category);
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/dashboard?${searchParams}`);
+      const response = await fetch(
+        `${API_BASE_URL}/api/dashboard?${searchParams}`,
+      );
 
       if (!response.ok) {
         throw new Error(`Request failed with status ${response.status}`);
@@ -250,325 +393,332 @@ export default function Home() {
     void sendMessage(`update expense id ${expense._id} amount to ${amount}`);
   }
 
+  if (!mounted) {
+    return <main className="min-h-screen bg-slate-100 dark:bg-slate-950" />;
+  }
+
   return (
-    <main className="min-h-screen bg-[#f6f5f2] text-[#1d1d1f]">
-      <div className="mx-auto flex min-h-screen w-full max-w-7xl flex-col gap-5 px-4 py-5 lg:grid lg:grid-cols-[260px_1fr] lg:px-6">
-        <aside className="flex flex-col justify-between border-r border-[#d8d3ca] bg-[#202124] p-5 text-white lg:min-h-[calc(100vh-40px)]">
-          <div>
-            <p className="text-sm uppercase tracking-[0.18em] text-[#b9c7c9]">
-              Personal OS
-            </p>
-            <h1 className="mt-3 text-3xl font-semibold">Jarvis</h1>
-            <p className="mt-3 text-sm leading-6 text-[#d5d8d5]">
-              Finance command center with chat, budgets, income, recurring
-              expenses, and savings goals.
-            </p>
-          </div>
+    <main className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.14),_transparent_35%),linear-gradient(to_bottom_right,_#f8fafc,_#f8fafc,_#ecfeff)] text-slate-950 transition-colors duration-300 dark:bg-[radial-gradient(circle_at_top,_rgba(14,165,233,0.16),_transparent_35%),linear-gradient(to_bottom_right,_#0f172a,_#020617,_#020617)] dark:text-white">
+      <div className="mx-auto w-full max-w-[1600px] px-4 py-4 sm:px-6 lg:px-8">
+        <div className="mb-5 overflow-hidden rounded-[32px] border border-slate-200/80 bg-white/90 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+          <div className="flex flex-col gap-4 border-b border-slate-200/70 p-5 md:flex-row md:items-end md:justify-between dark:border-white/10">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-700 dark:text-cyan-300">
+                Personal OS
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <h1 className="text-3xl font-semibold tracking-tight text-slate-950 dark:text-white sm:text-4xl">
+                  Jarvis
+                </h1>
+                <button
+                  type="button"
+                  onClick={toggle}
+                  className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                >
+                  {dark ? "☀️ Light" : "🌙 Dark"}
+                </button>
+              </div>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">
+                Finance command center with chat, budgets, income, recurring
+                expenses, and savings goals.
+              </p>
+            </div>
 
-          <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-1">
-            <div className="border border-[#454a4d] bg-[#292b2e] p-4">
-              <p className="text-xs text-[#b9c7c9]">Backend</p>
-              <p className="mt-1 text-sm font-medium">localhost:3000</p>
-            </div>
-            <div className="border border-[#454a4d] bg-[#292b2e] p-4">
-              <p className="text-xs text-[#b9c7c9]">Agents</p>
-              <p className="mt-1 text-sm font-medium">localhost:8000</p>
+            <div className="flex flex-wrap gap-3 text-xs text-slate-600 dark:text-slate-300">
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-white/10 dark:bg-white/10">
+                Backend: localhost:3000
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-2 shadow-sm dark:border-white/10 dark:bg-white/10">
+                Agents: localhost:8000
+              </span>
             </div>
           </div>
-        </aside>
+        </div>
 
-        <section className="flex flex-col gap-5">
-          <div className="grid gap-4 md:grid-cols-5">
-            <div className="border border-[#d8d3ca] bg-white p-4">
-              <p className="text-sm text-[#6b6b6b]">Today</p>
-              <p className="mt-2 text-2xl font-semibold">
-                {money(finance?.summary.todayExpenses)}
-              </p>
-            </div>
-            <div className="border border-[#d8d3ca] bg-white p-4">
-              <p className="text-sm text-[#6b6b6b]">Month Spend</p>
-              <p className="mt-2 text-2xl font-semibold">
-                {money(finance?.summary.monthExpenses)}
-              </p>
-            </div>
-            <div className="border border-[#d8d3ca] bg-white p-4">
-              <p className="text-sm text-[#6b6b6b]">Month Income</p>
-              <p className="mt-2 text-2xl font-semibold">
-                {money(finance?.summary.monthIncome)}
-              </p>
-            </div>
-            <div className="border border-[#d8d3ca] bg-white p-4">
-              <p className="text-sm text-[#6b6b6b]">Net</p>
-              <p className="mt-2 text-2xl font-semibold">
-                {money(finance?.summary.monthNet)}
-              </p>
-            </div>
-            <div className="border border-[#d8d3ca] bg-white p-4">
-              <p className="text-sm text-[#6b6b6b]">Recurring</p>
-              <p className="mt-2 text-2xl font-semibold">
-                {money(finance?.summary.recurringMonthly)}
-              </p>
-            </div>
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+            <MetricCard label="Today" value={finance?.summary.todayExpenses} />
+            <MetricCard label="Month Spend" value={finance?.summary.monthExpenses} />
+            <MetricCard label="Month Income" value={finance?.summary.monthIncome} />
+            <MetricCard label="Net" value={finance?.summary.monthNet} />
+            <MetricCard label="Recurring" value={finance?.summary.recurringMonthly} />
           </div>
 
           {error ? (
-            <div className="border border-[#d45644] bg-[#fff1ee] px-4 py-3 text-sm text-[#9c2e20]">
+            <Card className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700 shadow-sm dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
               {error}
-            </div>
+            </Card>
           ) : null}
 
-          <section className="grid gap-3 border border-[#d8d3ca] bg-white p-4 md:grid-cols-[1fr_1fr_auto]">
-            <label className="grid gap-2 text-sm">
-              <span className="text-xs font-medium text-[#6b6b6b]">Date</span>
-              <select
-                className="min-h-10 border border-[#c9c4ba] bg-white px-3 outline-none focus:border-[#245c63]"
-                onChange={(event) => setDateRange(event.target.value)}
-                value={dateRange}
-              >
-                {dateRangeOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="grid gap-2 text-sm">
-              <span className="text-xs font-medium text-[#6b6b6b]">Category</span>
-              <select
-                className="min-h-10 border border-[#c9c4ba] bg-white px-3 outline-none focus:border-[#245c63]"
-                onChange={(event) => setCategory(event.target.value)}
-                value={category}
-              >
-                {categoryOptions.map((option) => (
-                  <option key={option} value={option}>
-                    {option}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <div className="flex items-end">
-              <div className="w-full border border-[#d8d3ca] bg-[#faf9f6] px-3 py-2 text-sm">
-                <p className="text-xs text-[#6b6b6b]">Filtered</p>
-                <p className="font-semibold">
+          <Card className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur dark:border-white/10 dark:bg-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+            <div className="grid gap-4 md:grid-cols-[1fr_1fr_auto] md:items-end">
+              <label className="grid gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  Date
+                </span>
+                <select
+                  className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-sm outline-none transition-all duration-200 focus:-translate-y-0.5 focus:border-cyan-500 focus:shadow-md dark:border-white/10 dark:bg-slate-950 dark:text-white"
+                  onChange={(event) => setDateRange(event.target.value)}
+                  value={dateRange}
+                >
+                  {dateRangeOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="grid gap-2">
+                <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  Category
+                </span>
+                <select
+                  className="min-h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-950 shadow-sm outline-none transition-all duration-200 focus:-translate-y-0.5 focus:border-cyan-500 focus:shadow-md dark:border-white/10 dark:bg-slate-950 dark:text-white"
+                  onChange={(event) => setCategory(event.target.value)}
+                  value={category}
+                >
+                  {categoryOptions.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <Card className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-none dark:border-white/10 dark:bg-white/5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  Filtered
+                </p>
+                <p className="mt-1 text-base font-semibold text-slate-950 dark:text-white">
                   {money(finance?.summary.filteredExpenses)}
                 </p>
-              </div>
+              </Card>
             </div>
-          </section>
+          </Card>
 
-          <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-            <section className="grid gap-5">
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(340px,0.9fr)]">
+            <section className="grid min-w-0 gap-5">
               <div className="grid gap-5 lg:grid-cols-3">
-                <section className="border border-[#d8d3ca] bg-white p-5">
-                  <h2 className="text-xl font-semibold">Income vs Expense</h2>
-                  <div className="mt-5 space-y-4">
-                    <div>
-                      <div className="mb-2 flex justify-between text-sm">
-                        <span className="font-medium">Income</span>
-                        <span>{money(finance?.summary.monthIncome)}</span>
-                      </div>
-                      <div className="h-3 bg-[#ece8df]">
-                        <div
-                          className="h-3 bg-[#5e7f58]"
-                          style={{
-                            width: `${Math.max(((finance?.summary.monthIncome || 0) / incomeExpenseMax) * 100, 3)}%`,
-                          }}
-                        />
-                      </div>
+                <PanelCard title="Income vs Expense">
+                  <div className="space-y-4">
+                    <ProgressRow
+                      label="Income"
+                      valueText={money(finance?.summary.monthIncome)}
+                      value={finance?.summary.monthIncome || 0}
+                      max={incomeExpenseMax}
+                      tone="success"
+                    />
+                    <ProgressRow
+                      label="Expense"
+                      valueText={money(finance?.summary.monthExpenses)}
+                      value={finance?.summary.monthExpenses || 0}
+                      max={incomeExpenseMax}
+                      tone="danger"
+                    />
+                    <div className="rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                        Net
+                      </p>
+                      <p className="mt-1 text-sm font-medium text-slate-800 dark:text-slate-200">
+                        {money(finance?.summary.monthNet)}
+                      </p>
                     </div>
-                    <div>
-                      <div className="mb-2 flex justify-between text-sm">
-                        <span className="font-medium">Expense</span>
-                        <span>{money(finance?.summary.monthExpenses)}</span>
-                      </div>
-                      <div className="h-3 bg-[#ece8df]">
-                        <div
-                          className="h-3 bg-[#b94736]"
-                          style={{
-                            width: `${Math.max(((finance?.summary.monthExpenses || 0) / incomeExpenseMax) * 100, 3)}%`,
-                          }}
-                        />
-                      </div>
-                    </div>
-                    <p className="text-sm text-[#6b6b6b]">
-                      Net {money(finance?.summary.monthNet)}
-                    </p>
                   </div>
-                </section>
+                </PanelCard>
 
-                <section className="border border-[#d8d3ca] bg-white p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <h2 className="text-xl font-semibold">Category Spend</h2>
-                    <span className="text-xs text-[#6b6b6b]">
-                      {isDashboardLoading ? "Loading" : "This month"}
+                <PanelCard
+                  title="Category Spend"
+                  right={
+                    <span className="text-xs text-slate-500 dark:text-slate-400">
+                      {isDashboardLoading ? "Updating..." : "This month"}
                     </span>
-                  </div>
-                  <div className="mt-5 space-y-4">
+                  }
+                >
+                  <div className="space-y-4">
                     {finance?.categoryBreakdown.length ? (
                       finance.categoryBreakdown.map((item) => (
-                        <div key={item.category}>
-                          <div className="mb-2 flex justify-between gap-3 text-sm">
-                            <span className="font-medium">{item.category}</span>
-                            <span className="text-[#555]">{money(item.total)}</span>
-                          </div>
-                          <div className="h-2 bg-[#ece8df]">
-                            <div
-                              className="h-2 bg-[#245c63]"
-                              style={{
-                                width: `${Math.max((item.total / maxCategoryTotal) * 100, 4)}%`,
-                              }}
-                            />
-                          </div>
-                        </div>
+                        <ProgressRow
+                          key={item.category}
+                          label={item.category}
+                          valueText={money(item.total)}
+                          value={item.total}
+                          max={maxCategoryTotal}
+                        />
                       ))
                     ) : (
-                      <p className="text-sm leading-6 text-[#6b6b6b]">
+                      <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
                         No category spending yet.
                       </p>
                     )}
                   </div>
-                </section>
+                </PanelCard>
 
-                <section className="border border-[#d8d3ca] bg-white p-5">
-                  <h2 className="text-xl font-semibold">Budgets</h2>
-                  <div className="mt-5 space-y-4">
+                <PanelCard title="Budgets">
+                  <div className="space-y-5">
                     {finance?.budgets.length ? (
-                      finance.budgets.map((budget) => (
-                        <div key={`${budget.category}-${budget.period}`}>
-                          <div className="mb-2 flex justify-between gap-3 text-sm">
-                            <span className="font-medium">{budget.category}</span>
-                            <span className="text-[#555]">
-                              {money(budget.spent)} / {money(budget.budget)}
-                            </span>
-                          </div>
-                          <div className="h-2 bg-[#ece8df]">
-                            <div
-                              className={`h-2 ${
-                                budget.progress > 100
-                                  ? "bg-[#b94736]"
-                                  : "bg-[#5e7f58]"
-                              }`}
-                              style={{
-                                width: `${Math.min(Math.max(budget.progress, 3), 100)}%`,
-                              }}
-                            />
-                          </div>
-                          <p className="mt-2 text-xs text-[#6b6b6b]">
-                            Remaining {money(budget.remaining)}
-                          </p>
-                          {budget.progress >= 100 ? (
-                            <p className="mt-2 border border-[#e4b2a8] bg-[#fff1ee] px-3 py-2 text-xs text-[#9c2e20]">
-                              Over budget
+                      finance.budgets.map((budget) => {
+                        const overBudget = budget.progress > 100;
+                        const nearLimit = budget.progress >= 80 && !overBudget;
+
+                        return (
+                          <div key={`${budget.category}-${budget.period}`}>
+                            <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+                              <span className="font-medium text-slate-800 dark:text-slate-200">
+                                {budget.category}
+                              </span>
+                              <span className="text-slate-600 dark:text-slate-400">
+                                {money(budget.spent)} / {money(budget.budget)}
+                              </span>
+                            </div>
+
+                            <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700">
+                              <div
+                                className={`h-2 rounded-full transition-all duration-300 ${
+                                  overBudget ? "bg-rose-500" : "bg-emerald-500"
+                                }`}
+                                style={{
+                                  width: `${Math.min(Math.max(budget.progress, 3), 100)}%`,
+                                }}
+                              />
+                            </div>
+
+                            <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
+                              Remaining {money(budget.remaining)}
                             </p>
-                          ) : budget.progress >= 80 ? (
-                            <p className="mt-2 border border-[#e5d28c] bg-[#fff9df] px-3 py-2 text-xs text-[#765e0d]">
-                              Near limit
-                            </p>
-                          ) : null}
-                        </div>
-                      ))
+
+                            {overBudget ? (
+                              <div className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100">
+                                Over budget
+                              </div>
+                            ) : nearLimit ? (
+                              <div className="mt-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-100">
+                                Near limit
+                              </div>
+                            ) : null}
+                          </div>
+                        );
+                      })
                     ) : (
-                      <p className="text-sm leading-6 text-[#6b6b6b]">
+                      <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
                         No budgets set yet.
                       </p>
                     )}
                   </div>
-                </section>
+                </PanelCard>
               </div>
 
-              <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
-                <section className="flex min-h-[500px] flex-col border border-[#d8d3ca] bg-white">
-                  <div className="border-b border-[#d8d3ca] px-5 py-4">
-                    <h2 className="text-xl font-semibold">Chat</h2>
-                  </div>
-
-                  <div className="flex-1 space-y-4 overflow-y-auto px-5 py-5">
-                    {messages.map((message, index) => (
-                      <div
-                        className={`flex ${
-                          message.role === "user"
-                            ? "justify-end"
-                            : "justify-start"
-                        }`}
-                        key={`${message.role}-${index}`}
-                      >
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
+                <PanelCard title="Chat" className="flex min-h-[720px] flex-col">
+                  <div className="flex-1 overflow-y-auto pr-1">
+                    <div className="space-y-4">
+                      {messages.map((message, index) => (
                         <div
-                          className={`max-w-[78%] px-4 py-3 text-sm leading-6 ${
+                          key={`${message.role}-${index}`}
+                          className={`flex ${
                             message.role === "user"
-                              ? "bg-[#245c63] text-white"
-                              : "bg-[#f0eee9] text-[#1d1d1f]"
+                              ? "justify-end"
+                              : "justify-start"
                           }`}
                         >
-                          {message.content}
+                          <Card
+                            className={`max-w-[92%] rounded-3xl px-4 py-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 sm:max-w-[78%] ${
+                              message.role === "user"
+                                ? "border border-cyan-700/20 bg-gradient-to-br from-cyan-600 to-sky-600 text-white"
+                                : "border border-slate-200 bg-slate-50 text-slate-950 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                            }`}
+                          >
+                            <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                              {message.content}
+                            </p>
+                          </Card>
                         </div>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </div>
 
-                  <div className="border-t border-[#d8d3ca] p-4">
-                    <div className="mb-3 flex flex-wrap gap-2">
+                  <div className="mt-5 border-t border-slate-200 pt-4 dark:border-white/10">
+                    <div className="mb-4 flex flex-wrap gap-2">
                       {starterPrompts.map((prompt) => (
                         <button
-                          className="border border-[#c9c4ba] px-3 py-2 text-xs font-medium text-[#3b3b3d] hover:bg-[#f0eee9]"
                           key={prompt}
-                          onClick={() => void sendMessage(prompt)}
                           type="button"
+                          onClick={() => void sendMessage(prompt)}
+                          className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                         >
                           {prompt}
                         </button>
                       ))}
                     </div>
 
-                    <form className="flex gap-3" onSubmit={handleSubmit}>
+                    <form
+                      onSubmit={handleSubmit}
+                      className="flex flex-col gap-3 sm:flex-row sm:items-center"
+                    >
                       <input
-                        className="min-h-12 flex-1 border border-[#c9c4ba] px-4 text-sm outline-none focus:border-[#245c63]"
-                        onChange={(event) => setInput(event.target.value)}
+                        aria-label="Tell Jarvis what to do"
+                        className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-950 shadow-sm outline-none transition-all duration-200 placeholder:text-slate-400 focus:-translate-y-0.5 focus:border-cyan-500 focus:shadow-md dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500"
                         placeholder="Tell Jarvis what to do..."
                         value={input}
+                        onChange={(event) => setInput(event.target.value)}
                       />
-                      <button
-                        className="min-h-12 bg-[#202124] px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#8e8e8e]"
-                        disabled={isSending}
+                      {/* <button
                         type="submit"
+                        disabled={isSending}
+                        className="shrink-0 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-black shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-800 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red dark:text-slate-950 dark:hover:bg-slate-200"
                       >
                         {isSending ? "Sending" : "Send"}
-                      </button>
+                      </button> */}
+
+          <button
+  type="submit"
+  disabled={isSending}
+  className="shrink-0 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:bg-blue-500 dark:hover:bg-blue-600"
+>
+  {isSending ? "Sending" : "Send"}
+</button>
                     </form>
                   </div>
-                </section>
+                </PanelCard>
 
-                <aside className="border border-[#d8d3ca] bg-white p-5">
-                  <h2 className="text-xl font-semibold">Recent Expenses</h2>
-                  <div className="mt-4 space-y-3">
+                <PanelCard title="Recent Expenses" className="min-h-[720px]">
+                  <div className="space-y-4">
                     {finance?.recentExpenses.length ? (
                       finance.recentExpenses.map((expense) => (
                         <div
-                          className="border-b border-[#ece8df] pb-3 last:border-b-0"
                           key={expense._id}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
                         >
-                          <div className="flex justify-between gap-3 text-sm">
-                            <span className="font-medium">
-                              {expense.description}
-                            </span>
-                            <span>{money(expense.amount)}</span>
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                                {expense.description}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                                {expense.category} |{" "}
+                                {expense.payment_method || "unknown"} |{" "}
+                                {shortDate(
+                                  expense.occurred_at || expense.created_at,
+                                )}
+                              </p>
+                            </div>
+                            <p className="shrink-0 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                              {money(expense.amount)}
+                            </p>
                           </div>
-                          <p className="mt-1 text-xs text-[#6b6b6b]">
-                            {expense.category} |{" "}
-                            {expense.payment_method || "unknown"} |{" "}
-                            {shortDate(expense.occurred_at || expense.created_at)}
-                          </p>
-                          <div className="mt-3 flex gap-2">
+
+                          <div className="mt-4 flex flex-wrap gap-2">
                             <button
-                              className="border border-[#c9c4ba] px-3 py-1.5 text-xs font-medium hover:bg-[#f0eee9]"
-                              onClick={() => requestEditExpense(expense)}
                               type="button"
+                              onClick={() => requestEditExpense(expense)}
+                              className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                             >
                               Edit
                             </button>
                             <button
-                              className="border border-[#e4b2a8] px-3 py-1.5 text-xs font-medium text-[#9c2e20] hover:bg-[#fff1ee]"
-                              onClick={() => requestDeleteExpense(expense)}
                               type="button"
+                              onClick={() => requestDeleteExpense(expense)}
+                              className="rounded-full border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-md dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100 dark:hover:bg-rose-500/15"
                             >
                               Delete
                             </button>
@@ -576,19 +726,18 @@ export default function Home() {
                         </div>
                       ))
                     ) : (
-                      <p className="text-sm leading-6 text-[#6b6b6b]">
+                      <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
                         No expenses logged yet.
                       </p>
                     )}
                   </div>
-                </aside>
+                </PanelCard>
               </div>
             </section>
 
             <aside className="grid gap-5">
-              <section className="border border-[#d8d3ca] bg-white p-5">
-                <h2 className="text-xl font-semibold">Savings Goals</h2>
-                <div className="mt-4 space-y-4">
+              <PanelCard title="Savings Goals">
+                <div className="space-y-4">
                   {finance?.savingsGoals.length ? (
                     finance.savingsGoals.map((goal) => {
                       const saved = goal.saved_amount || 0;
@@ -599,14 +748,16 @@ export default function Home() {
                       return (
                         <div key={goal._id}>
                           <div className="mb-2 flex justify-between gap-3 text-sm">
-                            <span className="font-medium">{goal.name}</span>
-                            <span className="text-[#555]">
+                            <span className="font-medium text-slate-800 dark:text-slate-200">
+                              {goal.name}
+                            </span>
+                            <span className="text-slate-600 dark:text-slate-400">
                               {money(saved)} / {money(goal.target_amount)}
                             </span>
                           </div>
-                          <div className="h-2 bg-[#ece8df]">
+                          <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700">
                             <div
-                              className="h-2 bg-[#806b3a]"
+                              className="h-2 rounded-full bg-amber-500 transition-all duration-300"
                               style={{ width: `${Math.max(progress, 3)}%` }}
                             />
                           </div>
@@ -614,65 +765,71 @@ export default function Home() {
                       );
                     })
                   ) : (
-                    <p className="text-sm leading-6 text-[#6b6b6b]">
+                    <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
                       No savings goals yet.
                     </p>
                   )}
                 </div>
-              </section>
+              </PanelCard>
 
-              <section className="border border-[#d8d3ca] bg-white p-5">
-                <h2 className="text-xl font-semibold">Recurring</h2>
-                <div className="mt-4 space-y-3">
+              <PanelCard title="Recurring">
+                <div className="space-y-3">
                   {finance?.recurringExpenses.length ? (
                     finance.recurringExpenses.map((item) => (
                       <div
-                        className="flex justify-between gap-3 border-b border-[#ece8df] pb-3 text-sm last:border-b-0"
                         key={item._id}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
                       >
-                        <div>
-                          <p className="font-medium">{item.description}</p>
-                          <p className="mt-1 text-xs text-[#6b6b6b]">
-                            {item.category} | {item.frequency || "monthly"}
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+                              {item.description}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                              {item.category} | {item.frequency || "monthly"}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-sm font-semibold text-slate-800 dark:text-slate-200">
+                            {money(item.amount)}
                           </p>
                         </div>
-                        <span>{money(item.amount)}</span>
                       </div>
                     ))
                   ) : (
-                    <p className="text-sm leading-6 text-[#6b6b6b]">
+                    <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
                       No recurring expenses yet.
                     </p>
                   )}
                 </div>
-              </section>
+              </PanelCard>
 
-              <section className="border border-[#d8d3ca] bg-white p-5">
-                <h2 className="text-xl font-semibold">Agent Actions</h2>
-                <div className="mt-4 space-y-3">
+              <PanelCard title="Agent Actions">
+                <div className="space-y-3">
                   {actions.length ? (
                     actions.map((action, index) => (
-                      <div
-                        className="border border-[#e2ddd4] bg-[#faf9f6] p-3"
+                      <Card
                         key={`${action.type}-${index}`}
+                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
                       >
-                        <p className="text-sm font-semibold">{action.type}</p>
-                        <pre className="mt-2 overflow-x-auto text-xs leading-5 text-[#555]">
+                        <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                          {action.type}
+                        </p>
+                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 dark:text-slate-300">
                           {JSON.stringify(action, null, 2)}
                         </pre>
-                      </div>
+                      </Card>
                     ))
                   ) : (
-                    <p className="text-sm leading-6 text-[#6b6b6b]">
+                    <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
                       Agent results will appear here after Jarvis handles a
                       command.
                     </p>
                   )}
                 </div>
-              </section>
+              </PanelCard>
             </aside>
           </div>
-        </section>
+        </div>
       </div>
     </main>
   );

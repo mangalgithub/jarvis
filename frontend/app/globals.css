@@ -3,3 +3,32 @@
 
 @source "../app/**/*.{js,ts,jsx,tsx}";
 @source "../components/**/*.{js,ts,jsx,tsx}";
+
+/* Theme colors */
+:root {
+  --foreground: 71 85 105; /* slate-600 */
+}
+
+.dark {
+  --foreground: 226 232 240; /* slate-200 */
+}
+
+/* 🔥 Target actual text elements used */
+body,
+p,
+span,
+div,
+label,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+small,
+strong,
+b,
+a,
+li,button,select,option {
+  color: rgb(var(--foreground)) !important;
+}
