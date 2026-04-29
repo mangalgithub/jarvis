@@ -48,7 +48,7 @@ async def detect_intents(message: str) -> tuple[list[str], str]:
 Classify the user's message into one or more Jarvis intents.
 
 Allowed intents:
-- expense_tracking: logging, querying, or summarizing expenses/spending
+- expense_tracking: personal finance, expenses, income, budgets, savings goals, recurring payments, spending analytics
 - health_tracking: water, workout, protein, calories, gym, or health tracking
 - news_summary: news, headlines, India/world/current events summaries
 - stock_analysis: stocks, market, mutual funds, Nifty, Sensex, investments
