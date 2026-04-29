@@ -16,4 +16,17 @@ async function sendMessageToAgent({ message, userId }) {
   return response.json();
 }
 
-module.exports = { sendMessageToAgent };
+async function getDashboardFromAgent({ userId }) {
+  const searchParams = new URLSearchParams({
+    user_id: userId || "default-user",
+  });
+  const response = await fetch(`${AGENT_SERVICE_URL}/agent/dashboard?${searchParams}`);
+
+  if (!response.ok) {
+    throw new Error(`Agent dashboard failed with status ${response.status}`);
+  }
+
+  return response.json();
+}
+
+module.exports = { sendMessageToAgent, getDashboardFromAgent };

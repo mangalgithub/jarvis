@@ -1,12 +1,9 @@
+const { getDashboardFromAgent } = require("../services/agent.service");
+
 async function getDashboard(req, res) {
-  res.json({
-    news: null,
-    finance: null,
-    health: null,
-    stocks: null,
-    learning: null,
-    reminders: [],
-  });
+  const { userId = "default-user" } = req.query;
+  const dashboard = await getDashboardFromAgent({ userId });
+  res.json(dashboard);
 }
 
 module.exports = { getDashboard };
