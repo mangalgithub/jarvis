@@ -20,6 +20,7 @@ type ChatResponse = {
 type FinanceSummary = {
   todayExpenses: number;
   monthExpenses: number;
+  filteredExpenses: number;
   monthIncome: number;
   monthNet: number;
   recurringMonthly: number;
@@ -85,6 +86,23 @@ const starterPrompts = [
   "Category wise spending this month",
 ];
 
+const dateRangeOptions = ["today", "yesterday", "this week", "this month", "all time"];
+
+const categoryOptions = [
+  "All",
+  "Food",
+  "Grocery",
+  "Travel",
+  "Shopping",
+  "Investment",
+  "Bills",
+  "Health",
+  "Entertainment",
+  "Education",
+  "Rent",
+  "Other",
+];
+
 function money(amount = 0) {
   return `Rs ${amount.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
 }
@@ -111,6 +129,8 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [actions, setActions] = useState<AgentAction[]>([]);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
+  const [dateRange, setDateRange] = useState("this month");
+  const [category, setCategory] = useState("All");
   const [isSending, setIsSending] = useState(false);
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [error, setError] = useState("");
@@ -124,14 +144,26 @@ export default function Home() {
       ),
     [finance],
   );
+  const incomeExpenseMax = Math.max(
+    finance?.summary.monthIncome || 0,
+    finance?.summary.monthExpenses || 0,
+    1,
+  );
 
   const loadDashboard = useCallback(async () => {
     setIsDashboardLoading(true);
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/dashboard?userId=default-user`,
-      );
+      const searchParams = new URLSearchParams({
+        userId: "default-user",
+        dateRange,
+      });
+
+      if (category !== "All") {
+        searchParams.set("category", category);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/dashboard?${searchParams}`);
 
       if (!response.ok) {
         throw new Error(`Request failed with status ${response.status}`);
@@ -145,7 +177,7 @@ export default function Home() {
     } finally {
       setIsDashboardLoading(false);
     }
-  }, []);
+  }, [category, dateRange]);
 
   useEffect(() => {
     void loadDashboard();
@@ -202,6 +234,20 @@ export default function Home() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void sendMessage(input);
+  }
+
+  function requestDeleteExpense(expense: Expense) {
+    void sendMessage(`delete expense id ${expense._id}`);
+  }
+
+  function requestEditExpense(expense: Expense) {
+    const amount = window.prompt("New amount", String(expense.amount));
+
+    if (!amount) {
+      return;
+    }
+
+    void sendMessage(`update expense id ${expense._id} amount to ${amount}`);
   }
 
   return (
@@ -271,9 +317,85 @@ export default function Home() {
             </div>
           ) : null}
 
+          <section className="grid gap-3 border border-[#d8d3ca] bg-white p-4 md:grid-cols-[1fr_1fr_auto]">
+            <label className="grid gap-2 text-sm">
+              <span className="text-xs font-medium text-[#6b6b6b]">Date</span>
+              <select
+                className="min-h-10 border border-[#c9c4ba] bg-white px-3 outline-none focus:border-[#245c63]"
+                onChange={(event) => setDateRange(event.target.value)}
+                value={dateRange}
+              >
+                {dateRangeOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-2 text-sm">
+              <span className="text-xs font-medium text-[#6b6b6b]">Category</span>
+              <select
+                className="min-h-10 border border-[#c9c4ba] bg-white px-3 outline-none focus:border-[#245c63]"
+                onChange={(event) => setCategory(event.target.value)}
+                value={category}
+              >
+                {categoryOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {option}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end">
+              <div className="w-full border border-[#d8d3ca] bg-[#faf9f6] px-3 py-2 text-sm">
+                <p className="text-xs text-[#6b6b6b]">Filtered</p>
+                <p className="font-semibold">
+                  {money(finance?.summary.filteredExpenses)}
+                </p>
+              </div>
+            </div>
+          </section>
+
           <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
             <section className="grid gap-5">
-              <div className="grid gap-5 lg:grid-cols-2">
+              <div className="grid gap-5 lg:grid-cols-3">
+                <section className="border border-[#d8d3ca] bg-white p-5">
+                  <h2 className="text-xl font-semibold">Income vs Expense</h2>
+                  <div className="mt-5 space-y-4">
+                    <div>
+                      <div className="mb-2 flex justify-between text-sm">
+                        <span className="font-medium">Income</span>
+                        <span>{money(finance?.summary.monthIncome)}</span>
+                      </div>
+                      <div className="h-3 bg-[#ece8df]">
+                        <div
+                          className="h-3 bg-[#5e7f58]"
+                          style={{
+                            width: `${Math.max(((finance?.summary.monthIncome || 0) / incomeExpenseMax) * 100, 3)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mb-2 flex justify-between text-sm">
+                        <span className="font-medium">Expense</span>
+                        <span>{money(finance?.summary.monthExpenses)}</span>
+                      </div>
+                      <div className="h-3 bg-[#ece8df]">
+                        <div
+                          className="h-3 bg-[#b94736]"
+                          style={{
+                            width: `${Math.max(((finance?.summary.monthExpenses || 0) / incomeExpenseMax) * 100, 3)}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <p className="text-sm text-[#6b6b6b]">
+                      Net {money(finance?.summary.monthNet)}
+                    </p>
+                  </div>
+                </section>
+
                 <section className="border border-[#d8d3ca] bg-white p-5">
                   <div className="flex items-center justify-between gap-3">
                     <h2 className="text-xl font-semibold">Category Spend</h2>
@@ -334,6 +456,15 @@ export default function Home() {
                           <p className="mt-2 text-xs text-[#6b6b6b]">
                             Remaining {money(budget.remaining)}
                           </p>
+                          {budget.progress >= 100 ? (
+                            <p className="mt-2 border border-[#e4b2a8] bg-[#fff1ee] px-3 py-2 text-xs text-[#9c2e20]">
+                              Over budget
+                            </p>
+                          ) : budget.progress >= 80 ? (
+                            <p className="mt-2 border border-[#e5d28c] bg-[#fff9df] px-3 py-2 text-xs text-[#765e0d]">
+                              Near limit
+                            </p>
+                          ) : null}
                         </div>
                       ))
                     ) : (
@@ -426,6 +557,22 @@ export default function Home() {
                             {expense.payment_method || "unknown"} |{" "}
                             {shortDate(expense.occurred_at || expense.created_at)}
                           </p>
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              className="border border-[#c9c4ba] px-3 py-1.5 text-xs font-medium hover:bg-[#f0eee9]"
+                              onClick={() => requestEditExpense(expense)}
+                              type="button"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="border border-[#e4b2a8] px-3 py-1.5 text-xs font-medium text-[#9c2e20] hover:bg-[#fff1ee]"
+                              onClick={() => requestDeleteExpense(expense)}
+                              type="button"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </div>
                       ))
                     ) : (

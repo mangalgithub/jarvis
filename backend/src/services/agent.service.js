@@ -16,10 +16,18 @@ async function sendMessageToAgent({ message, userId }) {
   return response.json();
 }
 
-async function getDashboardFromAgent({ userId }) {
-  const searchParams = new URLSearchParams({
-    user_id: userId || "default-user",
-  });
+async function getDashboardFromAgent({ userId, dateRange, category }) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("user_id", userId || "default-user");
+
+  if (dateRange) {
+    searchParams.set("date_range", dateRange);
+  }
+
+  if (category && category !== "All") {
+    searchParams.set("category", category);
+  }
+
   const response = await fetch(`${AGENT_SERVICE_URL}/agent/dashboard?${searchParams}`);
 
   if (!response.ok) {

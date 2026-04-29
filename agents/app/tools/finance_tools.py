@@ -240,7 +240,44 @@ def normalize_finance_command(payload: dict, message: str) -> dict:
     return command
 
 
+def parse_direct_expense_action(message: str) -> dict | None:
+    delete_match = re.search(
+        r"\bdelete\s+expense\s+id\s+(?P<expense_id>[a-fA-F0-9]{24})\b",
+        message,
+    )
+    if delete_match:
+        return normalize_finance_command(
+            {
+                "operation": "delete_expense",
+                "delete": {"expense_id": delete_match.group("expense_id")},
+            },
+            message,
+        )
+
+    update_match = re.search(
+        r"\bupdate\s+expense\s+id\s+(?P<expense_id>[a-fA-F0-9]{24})\s+amount\s+to\s+(?P<amount>\d+(?:\.\d+)?)\b",
+        message,
+    )
+    if update_match:
+        return normalize_finance_command(
+            {
+                "operation": "update_expense",
+                "update": {
+                    "expense_id": update_match.group("expense_id"),
+                    "amount": float(update_match.group("amount")),
+                },
+            },
+            message,
+        )
+
+    return None
+
+
 async def parse_finance_command(message: str) -> dict:
+    direct_command = parse_direct_expense_action(message)
+    if direct_command:
+        return direct_command
+
     current_date = now_local().date().isoformat()
     categories = ", ".join(sorted(EXPENSE_CATEGORIES))
     operations = ", ".join(sorted(FINANCE_OPERATIONS))
@@ -263,8 +300,8 @@ Use this JSON shape:
   "recurring": {{"description": "Netflix", "amount": 649, "category": "Entertainment", "frequency": "monthly", "payment_method": "card"}},
   "savings_goal": {{"name": "laptop", "target_amount": 100000, "target_date": "YYYY-MM-DD"}},
   "filters": {{"category": "Food", "payment_method": "upi", "description": "lunch"}},
-  "update": {{"match_description": "lunch", "amount": 300, "category": "Food", "description": "lunch"}},
-  "delete": {{"match_description": "tea", "amount": 100}}
+  "update": {{"expense_id": "mongo_id", "match_description": "lunch", "amount": 300, "category": "Food", "description": "lunch"}},
+  "delete": {{"expense_id": "mongo_id", "match_description": "tea", "amount": 100}}
 }}
 
 Rules:

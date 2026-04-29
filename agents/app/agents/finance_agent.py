@@ -23,6 +23,10 @@ class FinanceAgent:
         message = context["message"]
         user_id = context["user_id"]
 
+        confirmation_result = await self._handle_confirmation_reply(user_id, message)
+        if confirmation_result:
+            return confirmation_result
+
         try:
             command = await parse_finance_command(message)
         except LLMUnavailableError as error:
@@ -237,6 +241,7 @@ class FinanceAgent:
         update = command.get("update") or {}
         document = await self._find_matching_expense(
             user_id,
+            update.get("expense_id"),
             update.get("match_description") or update.get("description"),
             update.get("amount"),
         )
@@ -260,22 +265,28 @@ class FinanceAgent:
         if update.get("payment_method"):
             set_fields["payment_method"] = normalize_payment_method(update.get("payment_method"))
 
-        await get_collection("expenses").update_one({"_id": document["_id"]}, {"$set": set_fields})
-        return {
-            "reply": "I updated the matching expense.",
-            "actions": [
-                {
-                    "type": "expense_updated",
-                    "expense_id": str(document["_id"]),
-                    "updated_fields": self._serialize_value(set_fields),
-                }
-            ],
-        }
+        return await self._create_pending_confirmation(
+            user_id=user_id,
+            operation="update_expense",
+            payload={
+                "expense_id": str(document["_id"]),
+                "set_fields": self._serialize_value(set_fields),
+            },
+            reply=(
+                f"I found {self._money(document['amount'])} on "
+                f"{document.get('description', 'expense')}. Should I update it?"
+            ),
+            preview={
+                "current": self._serialize_document(document),
+                "updated_fields": self._serialize_value(set_fields),
+            },
+        )
 
     async def _delete_expense(self, user_id: str, command: dict):
         delete = command.get("delete") or {}
         document = await self._find_matching_expense(
             user_id,
+            delete.get("expense_id"),
             delete.get("match_description") or delete.get("description"),
             delete.get("amount"),
         )
@@ -286,16 +297,16 @@ class FinanceAgent:
                 "actions": [{"type": "expense_delete_not_found", "delete": delete}],
             }
 
-        await get_collection("expenses").delete_one({"_id": document["_id"]})
-        return {
-            "reply": f"I deleted {self._money(document['amount'])} on {document.get('description', 'expense')}.",
-            "actions": [
-                {
-                    "type": "expense_deleted",
-                    "expense": self._serialize_document(document),
-                }
-            ],
-        }
+        return await self._create_pending_confirmation(
+            user_id=user_id,
+            operation="delete_expense",
+            payload={"expense_id": str(document["_id"])},
+            reply=(
+                f"I found {self._money(document['amount'])} on "
+                f"{document.get('description', 'expense')}. Should I delete it?"
+            ),
+            preview={"expense": self._serialize_document(document)},
+        )
 
     async def _set_budget(self, user_id: str, command: dict):
         budget = command.get("budget") or {}
@@ -561,13 +572,136 @@ class FinanceAgent:
             ],
         }
 
-    async def _find_matching_expense(self, user_id: str, description: str | None, amount):
+    async def _find_matching_expense(
+        self,
+        user_id: str,
+        expense_id: str | None,
+        description: str | None,
+        amount,
+    ):
+        if expense_id:
+            try:
+                return await get_collection("expenses").find_one(
+                    {"_id": ObjectId(expense_id), "user_id": user_id}
+                )
+            except Exception:
+                return None
+
         query = {"user_id": user_id}
         if description:
             query["description"] = {"$regex": re_escape(description), "$options": "i"}
         if amount is not None:
             query["amount"] = float(amount)
         return await get_collection("expenses").find_one(query, sort=[("created_at", -1)])
+
+    async def has_pending_confirmation(self, user_id: str):
+        pending = await get_collection("pending_actions").find_one(
+            {"user_id": user_id, "agent": self.name},
+            sort=[("created_at", -1)],
+        )
+        return pending is not None
+
+    def is_confirmation_reply(self, message: str):
+        normalized = message.strip().lower()
+        return normalized in {"yes", "y", "confirm", "do it", "ok", "okay", "no", "n", "cancel", "stop"}
+
+    async def _handle_confirmation_reply(self, user_id: str, message: str):
+        if not self.is_confirmation_reply(message):
+            return None
+
+        pending = await get_collection("pending_actions").find_one(
+            {"user_id": user_id, "agent": self.name},
+            sort=[("created_at", -1)],
+        )
+        if not pending:
+            return None
+
+        normalized = message.strip().lower()
+        if normalized in {"no", "n", "cancel", "stop"}:
+            await get_collection("pending_actions").delete_one({"_id": pending["_id"]})
+            return {
+                "reply": "Okay, I cancelled that change.",
+                "actions": [
+                    {
+                        "type": "finance_action_cancelled",
+                        "pending_action": self._serialize_document(pending),
+                    }
+                ],
+            }
+
+        payload = pending.get("payload", {})
+        operation = pending.get("operation")
+
+        if operation == "delete_expense":
+            expense_id = payload.get("expense_id")
+            document = await get_collection("expenses").find_one(
+                {"_id": ObjectId(expense_id), "user_id": user_id}
+            )
+            if not document:
+                await get_collection("pending_actions").delete_one({"_id": pending["_id"]})
+                return {
+                    "reply": "That expense is no longer available.",
+                    "actions": [{"type": "expense_delete_not_found"}],
+                }
+            await get_collection("expenses").delete_one({"_id": document["_id"]})
+            await get_collection("pending_actions").delete_one({"_id": pending["_id"]})
+            return {
+                "reply": f"I deleted {self._money(document['amount'])} on {document.get('description', 'expense')}.",
+                "actions": [{"type": "expense_deleted", "expense": self._serialize_document(document)}],
+            }
+
+        if operation == "update_expense":
+            expense_id = payload.get("expense_id")
+            set_fields = payload.get("set_fields", {})
+            await get_collection("expenses").update_one(
+                {"_id": ObjectId(expense_id), "user_id": user_id},
+                {"$set": {**set_fields, "updated_at": datetime.now(UTC)}},
+            )
+            await get_collection("pending_actions").delete_one({"_id": pending["_id"]})
+            return {
+                "reply": "I updated the expense.",
+                "actions": [
+                    {
+                        "type": "expense_updated",
+                        "expense_id": expense_id,
+                        "updated_fields": self._serialize_value(set_fields),
+                    }
+                ],
+            }
+
+        return None
+
+    async def _create_pending_confirmation(
+        self,
+        user_id: str,
+        operation: str,
+        payload: dict,
+        reply: str,
+        preview: dict,
+    ):
+        await get_collection("pending_actions").delete_many(
+            {"user_id": user_id, "agent": self.name}
+        )
+        document = {
+            "user_id": user_id,
+            "agent": self.name,
+            "operation": operation,
+            "payload": payload,
+            "preview": preview,
+            "created_at": datetime.now(UTC),
+        }
+        result = await get_collection("pending_actions").insert_one(document)
+        return {
+            "reply": f"{reply} Reply yes to confirm or no to cancel.",
+            "actions": [
+                {
+                    "type": "finance_confirmation_required",
+                    "confirmation_id": str(result.inserted_id),
+                    "operation": operation,
+                    "preview": preview,
+                }
+            ],
+        }
 
     async def _find_recent_duplicate(
         self,

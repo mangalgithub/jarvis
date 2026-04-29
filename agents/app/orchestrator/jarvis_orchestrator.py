@@ -80,6 +80,45 @@ User message: {message}
 
 
 async def run_orchestrator(request: ChatRequest) -> ChatResponse:
+    direct_finance_action = re.search(
+        r"\b(?:delete|update)\s+expense\s+id\s+[a-fA-F0-9]{24}\b",
+        request.message,
+    )
+
+    if direct_finance_action or finance_agent.is_confirmation_reply(request.message):
+        try:
+            if direct_finance_action or await finance_agent.has_pending_confirmation(request.user_id):
+                result = await finance_agent.run(
+                    {
+                        "user_id": request.user_id,
+                        "message": request.message,
+                        "intents": ["expense_tracking"],
+                    }
+                )
+                return ChatResponse(
+                    reply=result["reply"],
+                    actions=[
+                        {
+                            "type": "intent_detected",
+                            "intents": ["expense_tracking"],
+                            "source": "direct_finance_action"
+                            if direct_finance_action
+                            else "pending_confirmation",
+                        },
+                        *result["actions"],
+                    ],
+                )
+        except Exception as error:
+            return ChatResponse(
+                reply="I could not process the pending confirmation.",
+                actions=[
+                    {
+                        "type": "confirmation_processing_failed",
+                        "error": str(error),
+                    }
+                ],
+            )
+
     try:
         intents, intent_source = await detect_intents(request.message)
     except LLMUnavailableError as error:

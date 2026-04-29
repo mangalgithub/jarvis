@@ -16,23 +16,27 @@ def serialize_document(document: dict):
     return {key: serialize_value(value) for key, value in document.items()}
 
 
-async def expense_total(user_id: str, start, end, category: str | None = None):
-    match = {
-        "user_id": user_id,
-        "$or": [
+def expense_match(user_id: str, start, end, category: str | None = None):
+    match = {"user_id": user_id}
+
+    if start is not None:
+        match["$or"] = [
             {"occurred_at": {"$gte": start, "$lte": end}},
             {
                 "occurred_at": {"$exists": False},
                 "created_at": {"$gte": start, "$lte": end},
             },
-        ],
-    }
+        ]
 
-    if category:
+    if category and category != "All":
         match["category"] = category
 
+    return match
+
+
+async def expense_total(user_id: str, start, end, category: str | None = None):
     pipeline = [
-        {"$match": match},
+        {"$match": expense_match(user_id, start, end, category)},
         {"$group": {"_id": None, "total": {"$sum": "$amount"}}},
     ]
     result = await get_collection("expenses").aggregate(pipeline).to_list(length=1)
@@ -53,20 +57,9 @@ async def income_total(user_id: str, start, end):
     return result[0]["total"] if result else 0
 
 
-async def category_breakdown(user_id: str, start, end):
+async def category_breakdown(user_id: str, start, end, category: str | None = None):
     pipeline = [
-        {
-            "$match": {
-                "user_id": user_id,
-                "$or": [
-                    {"occurred_at": {"$gte": start, "$lte": end}},
-                    {
-                        "occurred_at": {"$exists": False},
-                        "created_at": {"$gte": start, "$lte": end},
-                    },
-                ],
-            }
-        },
+        {"$match": expense_match(user_id, start, end, category)},
         {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}},
         {"$sort": {"total": -1}},
     ]
@@ -77,9 +70,9 @@ async def category_breakdown(user_id: str, start, end):
     ]
 
 
-async def recent_expenses(user_id: str):
+async def recent_expenses(user_id: str, start, end, category: str | None = None):
     documents = await get_collection("expenses").find(
-        {"user_id": user_id}
+        expense_match(user_id, start, end, category)
     ).sort("created_at", -1).to_list(length=8)
     return [serialize_document(document) for document in documents]
 
@@ -127,27 +120,41 @@ async def recurring_expenses(user_id: str):
 
 
 @router.get("/dashboard")
-async def dashboard(user_id: str = "default-user"):
+async def dashboard(
+    user_id: str = "default-user",
+    date_range: str = "this month",
+    category: str | None = None,
+):
+    filter_label, filter_start, filter_end = resolve_date_range(
+        {"label": date_range},
+        date_range,
+    )
     _, today_start, today_end = resolve_date_range({"label": "today"}, "today")
     month_start, month_end = month_bounds(now_local())
 
     today_expense_total = await expense_total(user_id, today_start, today_end)
     month_expense_total = await expense_total(user_id, month_start, month_end)
+    filtered_expense_total = await expense_total(user_id, filter_start, filter_end, category)
     month_income_total = await income_total(user_id, month_start, month_end)
     recurring = await recurring_expenses(user_id)
 
     return {
         "finance": {
+            "filters": {
+                "dateRange": filter_label,
+                "category": category,
+            },
             "summary": {
                 "todayExpenses": today_expense_total,
                 "monthExpenses": month_expense_total,
+                "filteredExpenses": filtered_expense_total,
                 "monthIncome": month_income_total,
                 "monthNet": month_income_total - month_expense_total,
                 "recurringMonthly": recurring["total"],
             },
-            "categoryBreakdown": await category_breakdown(user_id, month_start, month_end),
+            "categoryBreakdown": await category_breakdown(user_id, filter_start, filter_end, category),
             "budgets": await budget_status(user_id, month_start, month_end),
-            "recentExpenses": await recent_expenses(user_id),
+            "recentExpenses": await recent_expenses(user_id, filter_start, filter_end, category),
             "savingsGoals": await savings_goals(user_id),
             "recurringExpenses": recurring["items"],
         },
