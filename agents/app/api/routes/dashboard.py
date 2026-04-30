@@ -6,6 +6,7 @@ from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
 from app.agents.memory_agent import MemoryAgent
 from app.agents.stock_agent import StockAgent
+from app.tools.reminder_tools import get_active_reminders
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import month_bounds, now_local, resolve_date_range
 
@@ -172,6 +173,12 @@ async def dashboard(
         logger.error("[dashboard] get_dashboard_stocks failed: %s", exc, exc_info=True)
         stock_data = None
 
+    try:
+        reminders_data = await get_active_reminders(user_id)
+    except Exception as exc:
+        logger.error("[dashboard] get_active_reminders failed: %s", exc, exc_info=True)
+        reminders_data = []
+
     return {
         "finance": {
             "filters": {
@@ -197,5 +204,5 @@ async def dashboard(
         "memory": memory_data,
         "stocks": stock_data,
         "learning": None,
-        "reminders": [],
+        "reminders": reminders_data,
     }

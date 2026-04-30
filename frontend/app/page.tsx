@@ -112,6 +112,13 @@ type StockData = {
   indices: StockIndex[];
 } | null;
 
+type Reminder = {
+  _id: string;
+  task: string;
+  execute_at: string;
+  status: string;
+};
+
 type DashboardResponse = {
   finance: {
     summary: FinanceSummary;
@@ -125,6 +132,7 @@ type DashboardResponse = {
   health: HealthData;
   memory: MemoryData;
   stocks: StockData;
+  reminders: Reminder[];
 };
 
 const API_BASE_URL =
@@ -139,6 +147,8 @@ const starterPrompts = [
   "Reliance stock price",
   "Roadmap to learn Python",
   "Best machine learning courses",
+  "Remind me to drink water in 1 hour",
+  "Remind me to check emails at 5pm",
   "Top gainers today",
   "Latest India news",
   "AI news summary",
@@ -743,6 +753,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   const [actions, setActions] = useState<AgentAction[]>([]);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
+  const [liveReminders, setLiveReminders] = useState<Reminder[]>([]);
   const [dateRange, setDateRange] = useState("this month");
   const [category, setCategory] = useState("All");
   const [isSending, setIsSending] = useState(false);
@@ -787,7 +798,11 @@ export default function Home() {
         throw new Error(`Request failed with status ${response.status}`);
       }
 
-      setDashboard((await response.json()) as DashboardResponse);
+      const data = await response.json() as DashboardResponse;
+      setDashboard(data);
+      if (data.reminders) {
+        setLiveReminders(data.reminders);
+      }
     } catch {
       setError(
         "Jarvis could not load dashboard data. Make sure backend, agents, and MongoDB are running.",
@@ -800,6 +815,49 @@ export default function Home() {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  useEffect(() => {
+    const wsUrl = API_BASE_URL.replace(/^http/, "ws") + "/api/ws/default-user";
+    const ws = new WebSocket(wsUrl);
+
+    ws.onmessage = (event) => {
+      try {
+        const message = JSON.parse(event.data);
+        if (message.type === "reminder_triggered") {
+          setLiveReminders((prev) => {
+            const updated = [...prev];
+            const existingIdx = updated.findIndex((r) => r._id === message.reminder._id);
+            if (existingIdx >= 0) {
+              updated[existingIdx] = message.reminder;
+            } else {
+              updated.push(message.reminder);
+            }
+            return updated;
+          });
+          // Show browser notification if permitted
+          if (Notification.permission === "granted") {
+            new Notification("Jarvis Reminder", {
+              body: message.reminder.task,
+            });
+          } else if (Notification.permission !== "denied") {
+            Notification.requestPermission().then(permission => {
+              if (permission === "granted") {
+                new Notification("Jarvis Reminder", {
+                  body: message.reminder.task,
+                });
+              }
+            });
+          }
+        }
+      } catch (err) {
+        console.error("WebSocket message parsing error:", err);
+      }
+    };
+
+    return () => {
+      ws.close();
+    };
+  }, []);
 
   async function sendMessage(message: string) {
     const trimmedMessage = message.trim();
@@ -866,6 +924,17 @@ export default function Home() {
     }
 
     void sendMessage(`update expense id ${expense._id} amount to ${amount}`);
+  }
+
+  function acknowledgeReminder(reminder: Reminder) {
+    // Send acknowledge to backend
+    fetch(`${API_BASE_URL}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: "default-user", message: `acknowledge reminder ${reminder._id}` }),
+    }).catch(console.error);
+
+    setLiveReminders(prev => prev.filter(r => r._id !== reminder._id));
   }
 
   if (!mounted) {
@@ -1333,6 +1402,40 @@ export default function Home() {
                   )}
                 </div>
               </PanelCard>
+
+              {liveReminders.length > 0 && (
+                <PanelCard title="Reminders">
+                  <div className="space-y-3">
+                    {liveReminders.map(r => {
+                      const triggered = r.status === "triggered";
+                      return (
+                        <div key={r._id} className={`rounded-xl border p-3 ${triggered ? 'border-red-200 bg-red-50 dark:border-red-900/30 dark:bg-red-900/10' : 'border-slate-200 bg-slate-50 dark:border-white/10 dark:bg-white/5'}`}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className={`text-sm font-semibold ${triggered ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-200'}`}>
+                                {triggered && "🔔 "} {r.task}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {new Date(r.execute_at).toLocaleString(undefined, {
+                                  month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit'
+                                })}
+                              </p>
+                            </div>
+                            {triggered && (
+                              <button
+                                onClick={() => acknowledgeReminder(r)}
+                                className="shrink-0 rounded-full bg-red-100 px-3 py-1.5 text-xs font-semibold text-red-700 transition-colors hover:bg-red-200 dark:bg-red-500/20 dark:text-red-300 dark:hover:bg-red-500/30"
+                              >
+                                Dismiss
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </PanelCard>
+              )}
 
               <HealthWidget health={dashboard?.health ?? null} onAsk={sendMessage} />
 

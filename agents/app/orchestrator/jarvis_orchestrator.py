@@ -7,6 +7,7 @@ from app.agents.news_agent import NewsAgent
 from app.agents.memory_agent import MemoryAgent
 from app.agents.stock_agent import StockAgent
 from app.agents.learning_agent import LearningAgent
+from app.agents.reminder_agent import ReminderAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.schemas.chat import ChatRequest, ChatResponse
 
@@ -16,6 +17,7 @@ health_agent = HealthAgent()
 memory_agent = MemoryAgent()
 stock_agent = StockAgent()
 learning_agent = LearningAgent()
+reminder_agent = ReminderAgent()
 
 VALID_INTENTS = {
     "expense_tracking",
@@ -89,6 +91,11 @@ _LEARNING_RE = re.compile(
     r"|python|javascript|java|react|machine learning|deep learning"
     r"|data science|devops|system design|dsa|algorithms|sql"
     r")\b",
+    re.IGNORECASE,
+)
+
+_REMINDER_RE = re.compile(
+    r"\b(?:remind(?:er)?|timer|set a timer|schedule|alert me|ping me|acknowledge reminder)\b",
     re.IGNORECASE,
 )
 
@@ -203,6 +210,8 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     # Memory gets absolute priority if it matches a clear memory pattern
     if _MEMORY_RE.search(request.message):
         intents, intent_source = ["memory_management"], "regex_shortcut"
+    elif _REMINDER_RE.search(request.message) and not is_finance:
+        intents, intent_source = ["reminder_management"], "regex_shortcut"
     elif _STOCK_RE.search(request.message) and not is_finance:
         intents, intent_source = ["stock_analysis"], "regex_shortcut"
     elif _LEARNING_RE.search(request.message) and not is_finance:
@@ -302,9 +311,19 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             ],
         )
 
+    if "reminder_management" in intents:
+        result = await reminder_agent.run(context)
+        return ChatResponse(
+            reply=result["reply"],
+            actions=[
+                {"type": "intent_detected", "intents": intents, "source": intent_source},
+                *result["actions"],
+            ],
+        )
+
     return ChatResponse(
         reply=(
-            "I can hear you. Finance, news, health, memory, stock, and learning agents are all active!"
+            "I can hear you. Finance, news, health, memory, stock, learning, and reminder agents are all active!"
         ),
         actions=[{"type": "intent_detected", "user_id": request.user_id, "intents": intents, "source": intent_source}],
     )

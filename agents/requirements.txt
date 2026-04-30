@@ -7,3 +7,4 @@ httpx
 groq
 yfinance
 mftool
+apscheduler
