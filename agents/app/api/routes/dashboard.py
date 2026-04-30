@@ -1,11 +1,17 @@
+import logging
+
 from fastapi import APIRouter
 
+from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import month_bounds, now_local, resolve_date_range
 
 router = APIRouter()
 news_agent = NewsAgent()
+health_agent = HealthAgent()
+
+logger = logging.getLogger(__name__)
 
 
 def serialize_value(value):
@@ -145,6 +151,12 @@ async def dashboard(
     except Exception:
         news_data = None
 
+    try:
+        health_data = await health_agent.get_dashboard_health(user_id)
+    except Exception as exc:
+        logger.error("[dashboard] get_dashboard_health failed: %s", exc, exc_info=True)
+        health_data = None
+
     return {
         "finance": {
             "filters": {
@@ -166,7 +178,7 @@ async def dashboard(
             "recurringExpenses": recurring["items"],
         },
         "news": news_data,
-        "health": None,
+        "health": health_data,
         "stocks": None,
         "learning": None,
         "reminders": [],

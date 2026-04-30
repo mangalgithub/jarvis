@@ -82,6 +82,18 @@ type NewsCategory = {
   articles: NewsArticle[];
 };
 
+type HealthData = {
+  water: { today: number; goal: number; progress: number };
+  nutrition: {
+    calories: { today: number; goal: number };
+    protein: { today: number; goal: number };
+  };
+  workout: {
+    streak_days: number;
+    last: { type: string; duration_minutes: number; logged_at: string } | null;
+  };
+} | null;
+
 type DashboardResponse = {
   finance: {
     summary: FinanceSummary;
@@ -92,6 +104,7 @@ type DashboardResponse = {
     recurringExpenses: RecurringExpense[];
   } | null;
   news: Record<string, NewsCategory> | null;
+  health: HealthData;
 };
 
 const API_BASE_URL =
@@ -104,6 +117,9 @@ const starterPrompts = [
   "Latest India news",
   "AI news summary",
   "Morning briefing",
+  "Drank 3 glasses of water",
+  "Did 45 min gym",
+  "Health summary",
 ];
 
 const dateRangeOptions = [
@@ -282,8 +298,139 @@ function timeAgo(isoString?: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
+function HealthBar({
+  label,
+  today,
+  goal,
+  unit = "",
+  color = "bg-emerald-500",
+}: {
+  label: string;
+  today: number;
+  goal: number;
+  unit?: string;
+  color?: string;
+}) {
+  const pct = goal > 0 ? Math.min((today / goal) * 100, 100) : 0;
+  const over = today > goal;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-sm">
+        <span className="font-medium text-slate-800 dark:text-slate-200">{label}</span>
+        <span className="text-slate-500 dark:text-slate-400">
+          {today.toLocaleString()}{unit} / {goal.toLocaleString()}{unit}
+        </span>
+      </div>
+      <div className="h-2 rounded-full bg-slate-200 dark:bg-slate-700">
+        <div
+          className={`h-2 rounded-full transition-all duration-300 ${over ? "bg-rose-500" : color}`}
+          style={{ width: `${Math.max(pct, 3)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function HealthWidget({
+  health,
+  onAsk,
+}: {
+  health: HealthData;
+  onAsk: (msg: string) => void;
+}) {
+  return (
+    <Card className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 opacity-70" />
+
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+          Health
+        </h2>
+        <button
+          type="button"
+          onClick={() => onAsk("Health summary")}
+          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-slate-300"
+        >
+          📊 Summary
+        </button>
+      </div>
+
+      {health === null || health === undefined ? (
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          Log water, workouts, or meals to see your health data here.
+        </p>
+      ) : (
+        <div className="space-y-4">
+          {/* Water */}
+          <HealthBar
+            label="💧 Water"
+            today={health.water.today}
+            goal={health.water.goal}
+            unit=" gl"
+            color="bg-sky-500"
+          />
+
+          {/* Calories */}
+          <HealthBar
+            label="🔥 Calories"
+            today={health.nutrition.calories.today}
+            goal={health.nutrition.calories.goal}
+            unit=" kcal"
+            color="bg-orange-500"
+          />
+
+          {/* Protein */}
+          <HealthBar
+            label="🥩 Protein"
+            today={health.nutrition.protein.today}
+            goal={health.nutrition.protein.goal}
+            unit="g"
+            color="bg-violet-500"
+          />
+
+          {/* Workout streak */}
+          <div className="rounded-2xl bg-slate-50 px-4 py-3 dark:bg-white/5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
+                  Workout Streak
+                </p>
+                <p className="mt-1 text-xl font-semibold text-slate-950 dark:text-white">
+                  🏋️ {health.workout.streak_days} day{health.workout.streak_days !== 1 ? "s" : ""}
+                </p>
+              </div>
+              {health.workout.last && (
+                <div className="text-right text-xs text-slate-500 dark:text-slate-400">
+                  <p className="font-medium capitalize">{health.workout.last.type}</p>
+                  <p>{health.workout.last.duration_minutes?.toFixed(0)} min</p>
+                  <p>{timeAgo(health.workout.last.logged_at)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick log buttons */}
+          <div className="flex flex-wrap gap-2 pt-1">
+            {["Drank 2 glasses of water", "Did 30 min gym", "Ate 500 calories 30g protein"].map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onAsk(p)}
+                className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-slate-300"
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 const NEWS_TABS = [
   { key: "india", label: "🇮🇳 India" },
+
   { key: "world", label: "🌍 World" },
   { key: "ai", label: "🤖 AI" },
 ];
@@ -948,6 +1095,8 @@ export default function Home() {
                   )}
                 </div>
               </PanelCard>
+
+              <HealthWidget health={dashboard?.health ?? null} onAsk={sendMessage} />
 
               <NewsPanel news={dashboard?.news ?? null} onAsk={sendMessage} />
 
