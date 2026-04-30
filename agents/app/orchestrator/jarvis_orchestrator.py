@@ -6,6 +6,7 @@ from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
 from app.agents.memory_agent import MemoryAgent
 from app.agents.stock_agent import StockAgent
+from app.agents.learning_agent import LearningAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.schemas.chat import ChatRequest, ChatResponse
 
@@ -14,6 +15,7 @@ news_agent = NewsAgent()
 health_agent = HealthAgent()
 memory_agent = MemoryAgent()
 stock_agent = StockAgent()
+learning_agent = LearningAgent()
 
 VALID_INTENTS = {
     "expense_tracking",
@@ -75,6 +77,17 @@ _STOCK_RE = re.compile(
     r"|reliance|tcs|infosys|wipro|hdfc|icici|sbi|bajaj|titan"
     r"|midcap|smallcap|large.?cap|index|gainers|losers|top stocks"
     r"|ipo|dividends?|returns?|portfolio"
+    r")\b",
+    re.IGNORECASE,
+)
+
+_LEARNING_RE = re.compile(
+    r"\b(?:"
+    r"learn(?:ing)?|teach me|tutorial|course|roadmap|study"
+    r"|how to (?:become|code|program|build|master|start learning)"
+    r"|youtube|video|playlist|lecture|syllabus"
+    r"|python|javascript|java|react|machine learning|deep learning"
+    r"|data science|devops|system design|dsa|algorithms|sql"
     r")\b",
     re.IGNORECASE,
 )
@@ -192,6 +205,8 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
         intents, intent_source = ["memory_management"], "regex_shortcut"
     elif _STOCK_RE.search(request.message) and not is_finance:
         intents, intent_source = ["stock_analysis"], "regex_shortcut"
+    elif _LEARNING_RE.search(request.message) and not is_finance:
+        intents, intent_source = ["learning_help"], "regex_shortcut"
     elif _HEALTH_RE.search(request.message) and not is_finance:
         intents, intent_source = ["health_tracking"], "regex_shortcut"
     elif _NEWS_RE.search(request.message) and not is_finance:
@@ -277,9 +292,19 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             ],
         )
 
+    if "learning_help" in intents:
+        result = await learning_agent.run(context)
+        return ChatResponse(
+            reply=result["reply"],
+            actions=[
+                {"type": "intent_detected", "intents": intents, "source": intent_source},
+                *result["actions"],
+            ],
+        )
+
     return ChatResponse(
         reply=(
-            "I can hear you. Finance, news, health, memory, and stock agents are all active!"
+            "I can hear you. Finance, news, health, memory, stock, and learning agents are all active!"
         ),
         actions=[{"type": "intent_detected", "user_id": request.user_id, "intents": intents, "source": intent_source}],
     )

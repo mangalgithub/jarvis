@@ -7,6 +7,7 @@ import { Card } from "@heroui/react";
 type Message = {
   role: "user" | "assistant";
   content: string;
+  actions?: AgentAction[];
 };
 
 type AgentAction = {
@@ -136,6 +137,8 @@ const starterPrompts = [
   "Remember I am vegetarian",
   "Nifty 50 today",
   "Reliance stock price",
+  "Roadmap to learn Python",
+  "Best machine learning courses",
   "Top gainers today",
   "Latest India news",
   "AI news summary",
@@ -833,7 +836,7 @@ export default function Home() {
 
       setMessages((currentMessages) => [
         ...currentMessages,
-        { role: "assistant", content: data.reply },
+        { role: "assistant", content: data.reply, actions: data.actions || [] },
       ]);
       setActions(data.actions || []);
       void loadDashboard();
@@ -1103,6 +1106,62 @@ export default function Home() {
                             <p className="whitespace-pre-wrap break-words text-sm leading-6">
                               {message.content}
                             </p>
+
+                            {/* Render Video Tiles for Learning Agent Actions */}
+                            {message.actions?.map((action, i) => {
+                              if (
+                                action.type === "learning_videos" ||
+                                action.type === "learning_channel" ||
+                                action.type === "learning_roadmap" ||
+                                action.type === "learning_playlists" ||
+                                action.type === "learning_courses"
+                              ) {
+                                // Extract videos or playlists depending on the action type
+                                const items = (action.videos as any[]) || 
+                                              (action.playlists as any[]) || 
+                                              (action.starter_videos as any[]) || [];
+                                
+                                // For learning_courses, we might have both
+                                const moreItems = (action.playlists && action.videos) 
+                                  ? [...(action.playlists as any[]), ...(action.videos as any[])]
+                                  : items;
+
+                                if (!moreItems.length) return null;
+
+                                return (
+                                  <div key={i} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                    {moreItems.map((v: any, vIdx: number) => (
+                                      <a
+                                        key={vIdx}
+                                        href={v.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="group block overflow-hidden rounded-xl border border-slate-200/60 bg-white/50 transition-all hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-black/20"
+                                      >
+                                        <div className="aspect-video w-full overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                          {v.thumbnail && (
+                                            <img
+                                              src={v.thumbnail}
+                                              alt={v.title}
+                                              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                            />
+                                          )}
+                                        </div>
+                                        <div className="p-3">
+                                          <h4 className="line-clamp-2 text-xs font-semibold leading-snug text-slate-800 dark:text-slate-200">
+                                            {v.title}
+                                          </h4>
+                                          <p className="mt-1 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                                            {v.channel}
+                                          </p>
+                                        </div>
+                                      </a>
+                                    ))}
+                                  </div>
+                                );
+                              }
+                              return null;
+                            })}
                           </Card>
                         </div>
                       ))}

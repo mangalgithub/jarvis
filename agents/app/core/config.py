@@ -19,6 +19,7 @@ class Settings(BaseModel):
         "https://api.groq.com/openai/v1/chat/completions",
     )
     news_api_key: str | None = getenv("NEWS_API_KEY")
+    youtube_api_key: str | None = getenv("YOUTUBE_API_KEY")
 
 
 settings = Settings()
