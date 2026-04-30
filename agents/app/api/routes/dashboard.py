@@ -1,9 +1,11 @@
 from fastapi import APIRouter
 
+from app.agents.news_agent import NewsAgent
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import month_bounds, now_local, resolve_date_range
 
 router = APIRouter()
+news_agent = NewsAgent()
 
 
 def serialize_value(value):
@@ -138,6 +140,11 @@ async def dashboard(
     month_income_total = await income_total(user_id, month_start, month_end)
     recurring = await recurring_expenses(user_id)
 
+    try:
+        news_data = await news_agent.get_dashboard_news(["india", "world", "ai"])
+    except Exception:
+        news_data = None
+
     return {
         "finance": {
             "filters": {
@@ -158,7 +165,7 @@ async def dashboard(
             "savingsGoals": await savings_goals(user_id),
             "recurringExpenses": recurring["items"],
         },
-        "news": None,
+        "news": news_data,
         "health": None,
         "stocks": None,
         "learning": None,

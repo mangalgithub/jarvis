@@ -68,6 +68,20 @@ type RecurringExpense = {
   frequency?: string;
 };
 
+type NewsArticle = {
+  title: string;
+  description?: string;
+  url: string;
+  source?: string;
+  published_at?: string;
+  image_url?: string;
+};
+
+type NewsCategory = {
+  label: string;
+  articles: NewsArticle[];
+};
+
 type DashboardResponse = {
   finance: {
     summary: FinanceSummary;
@@ -77,6 +91,7 @@ type DashboardResponse = {
     savingsGoals: SavingsGoal[];
     recurringExpenses: RecurringExpense[];
   } | null;
+  news: Record<string, NewsCategory> | null;
 };
 
 const API_BASE_URL =
@@ -86,6 +101,9 @@ const starterPrompts = [
   "I spent 250 on lunch by UPI",
   "Set food budget 5000 per month",
   "Category wise spending this month",
+  "Latest India news",
+  "AI news summary",
+  "Morning briefing",
 ];
 
 const dateRangeOptions = [
@@ -255,6 +273,133 @@ function PanelCard({
   );
 }
 
+function timeAgo(isoString?: string): string {
+  if (!isoString) return "";
+  const diff = Date.now() - new Date(isoString).getTime();
+  const hours = Math.floor(diff / 3_600_000);
+  if (hours < 1) return "just now";
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+}
+
+const NEWS_TABS = [
+  { key: "india", label: "🇮🇳 India" },
+  { key: "world", label: "🌍 World" },
+  { key: "ai", label: "🤖 AI" },
+];
+
+function NewsPanel({
+  news,
+  onAsk,
+}: {
+  news: Record<string, { label: string; articles: { title: string; description?: string; url: string; source?: string; published_at?: string; image_url?: string }[] }> | null;
+  onAsk: (message: string) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<string>("india");
+
+  const categoryData = news?.[activeTab];
+  const articles = categoryData?.articles ?? [];
+
+  return (
+    <Card className="group relative overflow-hidden rounded-3xl border border-slate-200/80 bg-white/90 p-5 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.12)] dark:border-white/10 dark:bg-white/5 dark:shadow-[0_10px_30px_rgba(0,0,0,0.35)]">
+      <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-rose-500 via-orange-400 to-amber-400 opacity-70" />
+
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold tracking-tight text-slate-950 dark:text-white">
+          News
+        </h2>
+        <button
+          type="button"
+          onClick={() => onAsk("Morning briefing")}
+          className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
+        >
+          📰 Daily briefing
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="mb-4 flex gap-1 rounded-2xl bg-slate-100 p-1 dark:bg-white/5">
+        {NEWS_TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 rounded-xl py-2 text-xs font-semibold transition-all duration-200 ${
+              activeTab === tab.key
+                ? "bg-white text-slate-950 shadow-sm dark:bg-white/15 dark:text-white"
+                : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Articles */}
+      <div className="space-y-3">
+        {news === null ? (
+          <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
+            Loading news…
+          </p>
+        ) : articles.length === 0 ? (
+          <p className="text-sm leading-6 text-slate-500 dark:text-slate-400">
+            No headlines available. Try asking Jarvis: &quot;Latest India news&quot;
+          </p>
+        ) : (
+          articles.map((article, index) => (
+            <div
+              key={`${activeTab}-${index}`}
+              className="group/article rounded-2xl border border-slate-200 bg-slate-50 p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
+            >
+              <a
+                href={article.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <p className="text-sm font-medium leading-5 text-slate-900 transition-colors group-hover/article:text-cyan-700 dark:text-slate-100 dark:group-hover/article:text-cyan-400">
+                  {article.title}
+                </p>
+                <div className="mt-1.5 flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                  {article.source && (
+                    <span className="rounded-full bg-slate-200 px-2 py-0.5 font-medium dark:bg-white/10">
+                      {article.source}
+                    </span>
+                  )}
+                  {article.published_at && (
+                    <span>{timeAgo(article.published_at)}</span>
+                  )}
+                </div>
+              </a>
+              <button
+                type="button"
+                onClick={() =>
+                  onAsk(`Summarize this news: ${article.title}`)
+                }
+                className="mt-2 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 dark:border-white/10 dark:bg-white/10 dark:text-slate-300"
+              >
+                Ask Jarvis
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {articles.length > 0 && (
+        <button
+          type="button"
+          onClick={() =>
+            onAsk(`${NEWS_TABS.find((t) => t.key === activeTab)?.label ?? ""} news summary`)
+          }
+          className="mt-4 w-full rounded-2xl border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+        >
+          Summarize {categoryData?.label ?? ""} News
+        </button>
+      )}
+    </Card>
+  );
+}
+
 export default function Home() {
   const { dark, toggle, mounted } = useDarkMode();
 
@@ -262,9 +407,10 @@ export default function Home() {
     {
       role: "assistant",
       content:
-        "Jarvis is online. Log expenses, set budgets, track income, and watch the dashboard update.",
+        "Jarvis is online. Log expenses, check budgets, get the latest news, and ask for a morning briefing.",
     },
   ]);
+
   const [input, setInput] = useState("");
   const [actions, setActions] = useState<AgentAction[]>([]);
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
@@ -803,22 +949,32 @@ export default function Home() {
                 </div>
               </PanelCard>
 
+              <NewsPanel news={dashboard?.news ?? null} onAsk={sendMessage} />
+
               <PanelCard title="Agent Actions">
                 <div className="space-y-3">
-                  {actions.length ? (
-                    actions.map((action, index) => (
-                      <Card
-                        key={`${action.type}-${index}`}
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
-                      >
-                        <p className="text-sm font-semibold text-slate-950 dark:text-white">
-                          {action.type}
-                        </p>
-                        <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 dark:text-slate-300">
-                          {JSON.stringify(action, null, 2)}
-                        </pre>
-                      </Card>
-                    ))
+                  {actions.filter(
+                    (a) =>
+                      !["news_fetched", "news_briefing", "news_fetch_failed"].includes(a.type)
+                  ).length ? (
+                    actions
+                      .filter(
+                        (a) =>
+                          !["news_fetched", "news_briefing", "news_fetch_failed"].includes(a.type)
+                      )
+                      .map((action, index) => (
+                        <Card
+                          key={`${action.type}-${index}`}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4 shadow-none transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-white/10 dark:bg-white/5"
+                        >
+                          <p className="text-sm font-semibold text-slate-950 dark:text-white">
+                            {action.type}
+                          </p>
+                          <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words text-xs leading-5 text-slate-600 dark:text-slate-300">
+                            {JSON.stringify(action, null, 2)}
+                          </pre>
+                        </Card>
+                      ))
                   ) : (
                     <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
                       Agent results will appear here after Jarvis handles a

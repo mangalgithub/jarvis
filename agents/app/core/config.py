@@ -18,6 +18,7 @@ class Settings(BaseModel):
         "GROQ_API_URL",
         "https://api.groq.com/openai/v1/chat/completions",
     )
+    news_api_key: str | None = getenv("NEWS_API_KEY")
 
 
 settings = Settings()

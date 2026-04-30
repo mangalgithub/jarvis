@@ -2,10 +2,12 @@ import json
 import re
 
 from app.agents.finance_agent import FinanceAgent
+from app.agents.news_agent import NewsAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.schemas.chat import ChatRequest, ChatResponse
 
 finance_agent = FinanceAgent()
+news_agent = NewsAgent()
 
 VALID_INTENTS = {
     "expense_tracking",
@@ -156,9 +158,23 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             ],
         )
 
+    if "news_summary" in intents:
+        result = await news_agent.run(context)
+        return ChatResponse(
+            reply=result["reply"],
+            actions=[
+                {
+                    "type": "intent_detected",
+                    "intents": intents,
+                    "source": intent_source,
+                },
+                *result["actions"],
+            ],
+        )
+
     return ChatResponse(
         reply=(
-            "I can hear you. Finance tracking is active now; news, health, "
+            "I can hear you. Finance and news tracking are active; health, "
             "learning, and stock agents are the next modules to wire in."
         ),
         actions=[
