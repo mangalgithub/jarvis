@@ -96,10 +96,11 @@ def normalize_health_command(payload: dict) -> dict:
     }
 
 
-async def parse_health_command(message: str) -> dict:
+async def parse_health_command(message: str, user_memory: str = "") -> dict:
     current_date = now_local().date().isoformat()
     prompt = f"""You are Jarvis's health parser. Parse the user's message into strict JSON.
 Today is {current_date} (Asia/Kolkata).
+User memory (context): {user_memory if user_memory else "None"}
 
 Allowed operations: {", ".join(sorted(HEALTH_OPERATIONS))}
 

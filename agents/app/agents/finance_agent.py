@@ -19,16 +19,17 @@ from app.tools.finance_tools import (
 class FinanceAgent:
     name = "finance"
 
-    async def run(self, context: dict):
+    async def run(self, context: dict) -> dict:
         message = context["message"]
         user_id = context["user_id"]
+        user_memory = context.get("user_memory", "")
 
         confirmation_result = await self._handle_confirmation_reply(user_id, message)
         if confirmation_result:
             return confirmation_result
 
         try:
-            command = await parse_finance_command(message)
+            command = await parse_finance_command(message, user_memory)
         except LLMUnavailableError as error:
             fallback_expenses = extract_expenses(message)
             if not fallback_expenses:

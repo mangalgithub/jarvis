@@ -4,12 +4,14 @@ import re
 from app.agents.finance_agent import FinanceAgent
 from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
+from app.agents.memory_agent import MemoryAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.schemas.chat import ChatRequest, ChatResponse
 
 finance_agent = FinanceAgent()
 news_agent = NewsAgent()
 health_agent = HealthAgent()
+memory_agent = MemoryAgent()
 
 VALID_INTENTS = {
     "expense_tracking",
@@ -17,6 +19,7 @@ VALID_INTENTS = {
     "news_summary",
     "stock_analysis",
     "learning_help",
+    "memory_management",
     "general_chat",
 }
 
@@ -53,6 +56,13 @@ _FINANCE_KEYWORDS = {
 
 _NEWS_RE = re.compile(
     r"\b(?:news|headline|briefing|latest|today'?s?\s+news)\b",
+    re.IGNORECASE,
+)
+
+_MEMORY_RE = re.compile(
+    r"\b(?:remember|forget|what do you know|my profile|memory)\b"
+    r"|^my \w+ is\b"
+    r"|^i (?:go to|always|usually)\b",
     re.IGNORECASE,
 )
 
@@ -93,6 +103,7 @@ Allowed intents:
 - news_summary: news, headlines, India/world/current events summaries
 - stock_analysis: stocks, market, mutual funds, Nifty, Sensex, investments
 - learning_help: learning plans, courses, YouTube, AI/tech study help
+- memory_management: saving/recalling personal facts, user preferences, erasing memory
 - general_chat: anything else
 
 Return only valid JSON in this exact shape:
@@ -163,7 +174,10 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     msg_lower = request.message.lower()
     is_finance = any(kw in msg_lower for kw in _FINANCE_KEYWORDS)
 
-    if _HEALTH_RE.search(request.message) and not is_finance:
+    # Memory gets absolute priority if it matches a clear memory pattern
+    if _MEMORY_RE.search(request.message):
+        intents, intent_source = ["memory_management"], "regex_shortcut"
+    elif _HEALTH_RE.search(request.message) and not is_finance:
         intents, intent_source = ["health_tracking"], "regex_shortcut"
     elif _NEWS_RE.search(request.message) and not is_finance:
         intents, intent_source = ["news_summary"], "regex_shortcut"
@@ -185,10 +199,13 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
                 ],
             )
 
+    user_memory = await memory_agent.get_context_string(request.user_id)
+
     context = {
         "user_id": request.user_id,
         "message": request.message,
         "intents": intents,
+        "user_memory": user_memory,
     }
 
     if "expense_tracking" in intents:
@@ -217,6 +234,16 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
 
     if "health_tracking" in intents:
         result = await health_agent.run(context)
+        return ChatResponse(
+            reply=result["reply"],
+            actions=[
+                {"type": "intent_detected", "intents": intents, "source": intent_source},
+                *result["actions"],
+            ],
+        )
+
+    if "memory_management" in intents:
+        result = await memory_agent.run(context)
         return ChatResponse(
             reply=result["reply"],
             actions=[

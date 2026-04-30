@@ -94,6 +94,11 @@ type HealthData = {
   };
 } | null;
 
+type MemoryData = {
+  total: number;
+  categories: Record<string, { key: string; value: string }[]>;
+} | null;
+
 type DashboardResponse = {
   finance: {
     summary: FinanceSummary;
@@ -105,6 +110,7 @@ type DashboardResponse = {
   } | null;
   news: Record<string, NewsCategory> | null;
   health: HealthData;
+  memory: MemoryData;
 };
 
 const API_BASE_URL =
@@ -113,6 +119,8 @@ const API_BASE_URL =
 const starterPrompts = [
   "I spent 250 on lunch by UPI",
   "Set food budget 5000 per month",
+  "Drank 2 glasses of water",
+  "Remember I am vegetarian",
   "Category wise spending this month",
   "Latest India news",
   "AI news summary",
@@ -328,6 +336,86 @@ function HealthBar({
         />
       </div>
     </div>
+  );
+}
+
+function MemoryWidget({
+  memory,
+  onAsk,
+}: {
+  memory: MemoryData;
+  onAsk: (msg: string) => void;
+}) {
+  if (!memory || memory.total === 0) {
+    return (
+      <PanelCard title="What Jarvis Knows">
+        <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+          I don't know much about you yet! Tell me your preferences so I can help you better.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => onAsk("Remember I am vegetarian")}
+            className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
+          >
+            "Remember I am vegetarian"
+          </button>
+          <button
+            onClick={() => onAsk("My monthly salary is 50000")}
+            className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
+          >
+            "My monthly salary is 50000"
+          </button>
+        </div>
+      </PanelCard>
+    );
+  }
+
+  const emojiMap: Record<string, string> = {
+    personal: "👤", diet: "🥗", finance: "💰", health: "🏋️",
+    preferences: "⚙️", goals: "🎯", work: "💼", other: "📝",
+  };
+
+  return (
+    <PanelCard title={`User Profile (${memory.total} facts)`}>
+      <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+        {Object.entries(memory.categories).map(([cat, items]) => (
+          <div key={cat}>
+            <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              {emojiMap[cat] || "📝"} {cat}
+            </h4>
+            <ul className="space-y-1">
+              {items.map((item) => (
+                <li
+                  key={item.key}
+                  className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-white/5"
+                >
+                  <span className="font-medium capitalize text-slate-700 dark:text-slate-300">
+                    {item.key.replace(/_/g, " ")}
+                  </span>
+                  <span className="text-right font-semibold text-slate-900 dark:text-white">
+                    {item.value}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex flex-wrap gap-2">
+        <button
+          onClick={() => onAsk("What do you know about me?")}
+          className="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20"
+        >
+          View All
+        </button>
+        <button
+          onClick={() => onAsk("Forget my diet")}
+          className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-white/10 dark:text-slate-400 dark:hover:bg-white/20"
+        >
+          Forget...
+        </button>
+      </div>
+    </PanelCard>
   );
 }
 
@@ -1097,6 +1185,8 @@ export default function Home() {
               </PanelCard>
 
               <HealthWidget health={dashboard?.health ?? null} onAsk={sendMessage} />
+
+              <MemoryWidget memory={dashboard?.memory ?? null} onAsk={sendMessage} />
 
               <NewsPanel news={dashboard?.news ?? null} onAsk={sendMessage} />
 

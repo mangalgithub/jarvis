@@ -22,7 +22,8 @@ class HealthAgent:
     async def run(self, context: dict) -> dict:
         message = context.get("message", "")
         user_id = context.get("user_id", "default-user")
-        command = await parse_health_command(message)
+        user_memory = context.get("user_memory", "")
+        command = await parse_health_command(message, user_memory)
         operation = command["operation"]
 
         try:
