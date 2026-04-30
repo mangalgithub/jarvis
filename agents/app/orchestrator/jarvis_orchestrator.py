@@ -5,6 +5,7 @@ from app.agents.finance_agent import FinanceAgent
 from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
 from app.agents.memory_agent import MemoryAgent
+from app.agents.stock_agent import StockAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.schemas.chat import ChatRequest, ChatResponse
 
@@ -12,6 +13,7 @@ finance_agent = FinanceAgent()
 news_agent = NewsAgent()
 health_agent = HealthAgent()
 memory_agent = MemoryAgent()
+stock_agent = StockAgent()
 
 VALID_INTENTS = {
     "expense_tracking",
@@ -63,6 +65,17 @@ _MEMORY_RE = re.compile(
     r"\b(?:remember|forget|what do you know|my profile|memory)\b"
     r"|^my \w+ is\b"
     r"|^i (?:go to|always|usually)\b",
+    re.IGNORECASE,
+)
+
+_STOCK_RE = re.compile(
+    r"\b(?:"
+    r"stock|share|nifty|sensex|bank nifty|market|equity"
+    r"|mutual fund|mf\b|nav|sip|folio"
+    r"|reliance|tcs|infosys|wipro|hdfc|icici|sbi|bajaj|titan"
+    r"|midcap|smallcap|large.?cap|index|gainers|losers|top stocks"
+    r"|ipo|dividends?|returns?|portfolio"
+    r")\b",
     re.IGNORECASE,
 )
 
@@ -177,6 +190,8 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     # Memory gets absolute priority if it matches a clear memory pattern
     if _MEMORY_RE.search(request.message):
         intents, intent_source = ["memory_management"], "regex_shortcut"
+    elif _STOCK_RE.search(request.message) and not is_finance:
+        intents, intent_source = ["stock_analysis"], "regex_shortcut"
     elif _HEALTH_RE.search(request.message) and not is_finance:
         intents, intent_source = ["health_tracking"], "regex_shortcut"
     elif _NEWS_RE.search(request.message) and not is_finance:
@@ -252,10 +267,19 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             ],
         )
 
+    if "stock_analysis" in intents:
+        result = await stock_agent.run(context)
+        return ChatResponse(
+            reply=result["reply"],
+            actions=[
+                {"type": "intent_detected", "intents": intents, "source": intent_source},
+                *result["actions"],
+            ],
+        )
+
     return ChatResponse(
         reply=(
-            "I can hear you. Finance, news, and health tracking are active; "
-            "stock, learning, and memory agents are next."
+            "I can hear you. Finance, news, health, memory, and stock agents are all active!"
         ),
         actions=[{"type": "intent_detected", "user_id": request.user_id, "intents": intents, "source": intent_source}],
     )

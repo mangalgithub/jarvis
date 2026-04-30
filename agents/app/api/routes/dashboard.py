@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
 from app.agents.memory_agent import MemoryAgent
+from app.agents.stock_agent import StockAgent
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import month_bounds, now_local, resolve_date_range
 
@@ -12,6 +13,7 @@ router = APIRouter()
 news_agent = NewsAgent()
 health_agent = HealthAgent()
 memory_agent = MemoryAgent()
+stock_agent = StockAgent()
 
 logger = logging.getLogger(__name__)
 
@@ -164,6 +166,12 @@ async def dashboard(
         logger.error("[dashboard] get_dashboard_memory failed: %s", exc, exc_info=True)
         memory_data = None
 
+    try:
+        stock_data = await stock_agent.get_dashboard_stocks()
+    except Exception as exc:
+        logger.error("[dashboard] get_dashboard_stocks failed: %s", exc, exc_info=True)
+        stock_data = None
+
     return {
         "finance": {
             "filters": {
@@ -187,7 +195,7 @@ async def dashboard(
         "news": news_data,
         "health": health_data,
         "memory": memory_data,
-        "stocks": None,
+        "stocks": stock_data,
         "learning": None,
         "reminders": [],
     }

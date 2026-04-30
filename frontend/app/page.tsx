@@ -99,6 +99,18 @@ type MemoryData = {
   categories: Record<string, { key: string; value: string }[]>;
 } | null;
 
+type StockIndex = {
+  name: string;
+  symbol: string;
+  price: number;
+  change: number;
+  change_pct: number;
+};
+
+type StockData = {
+  indices: StockIndex[];
+} | null;
+
 type DashboardResponse = {
   finance: {
     summary: FinanceSummary;
@@ -111,6 +123,7 @@ type DashboardResponse = {
   news: Record<string, NewsCategory> | null;
   health: HealthData;
   memory: MemoryData;
+  stocks: StockData;
 };
 
 const API_BASE_URL =
@@ -121,12 +134,11 @@ const starterPrompts = [
   "Set food budget 5000 per month",
   "Drank 2 glasses of water",
   "Remember I am vegetarian",
-  "Category wise spending this month",
+  "Nifty 50 today",
+  "Reliance stock price",
+  "Top gainers today",
   "Latest India news",
   "AI news summary",
-  "Morning briefing",
-  "Drank 3 glasses of water",
-  "Did 45 min gym",
   "Health summary",
 ];
 
@@ -413,6 +425,85 @@ function MemoryWidget({
           className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-white/10 dark:text-slate-400 dark:hover:bg-white/20"
         >
           Forget...
+        </button>
+      </div>
+    </PanelCard>
+  );
+}
+
+function StockWidget({
+  stocks,
+  onAsk,
+}: {
+  stocks: StockData;
+  onAsk: (msg: string) => void;
+}) {
+  if (!stocks || stocks.indices.length === 0) {
+    return (
+      <PanelCard title="Markets">
+        <p className="text-sm leading-6 text-slate-600 dark:text-slate-400">
+          Market data loading...
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={() => onAsk("Nifty 50 today")}
+            className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
+          >
+            Nifty 50
+          </button>
+          <button
+            onClick={() => onAsk("Top gainers today")}
+            className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-200 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/20"
+          >
+            Top Gainers
+          </button>
+        </div>
+      </PanelCard>
+    );
+  }
+
+  return (
+    <PanelCard title="Markets">
+      <div className="space-y-2">
+        {stocks.indices.map((idx) => {
+          const isPositive = idx.change_pct >= 0;
+          return (
+            <div
+              key={idx.name}
+              className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5 dark:bg-white/5"
+            >
+              <div>
+                <p className="text-sm font-semibold text-slate-800 dark:text-white">{idx.name}</p>
+                <p className="text-xs text-slate-500">{idx.price?.toLocaleString("en-IN")}</p>
+              </div>
+              <div className={`text-right text-xs font-bold ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
+                <p>{isPositive ? "▲" : "▼"} {Math.abs(idx.change_pct ?? 0).toFixed(2)}%</p>
+                <p className="font-normal opacity-75">
+                  {isPositive ? "+" : ""}{(idx.change ?? 0).toFixed(2)}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          onClick={() => onAsk("Reliance stock price")}
+          className="rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-600 transition-colors hover:bg-indigo-100 dark:bg-indigo-500/10 dark:text-indigo-400 dark:hover:bg-indigo-500/20"
+        >
+          Reliance
+        </button>
+        <button
+          onClick={() => onAsk("Top gainers today")}
+          className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-100 dark:bg-emerald-500/10 dark:text-emerald-400 dark:hover:bg-emerald-500/20"
+        >
+          Gainers 📈
+        </button>
+        <button
+          onClick={() => onAsk("Axis bluechip mutual fund NAV")}
+          className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 dark:bg-white/10 dark:text-slate-400 dark:hover:bg-white/20"
+        >
+          MF NAV
         </button>
       </div>
     </PanelCard>
@@ -1185,6 +1276,8 @@ export default function Home() {
               </PanelCard>
 
               <HealthWidget health={dashboard?.health ?? null} onAsk={sendMessage} />
+
+              <StockWidget stocks={dashboard?.stocks ?? null} onAsk={sendMessage} />
 
               <MemoryWidget memory={dashboard?.memory ?? null} onAsk={sendMessage} />
 
