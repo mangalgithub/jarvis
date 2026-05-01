@@ -3,6 +3,8 @@
 import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard } from "@/components/dashboard/PanelCard";
 import { money, shortDate } from "@/lib/utils";
+import { useSpeechToText } from "@/hooks/useSpeechToText";
+import { useEffect } from "react";
 
 const starterPrompts = [
   "I spent 250 on lunch by UPI",
@@ -27,6 +29,14 @@ export default function Home() {
     acknowledgeReminder,
     userName
   } = useDashboard();
+
+  const { isListening, transcript, startListening, stopListening } = useSpeechToText();
+
+  useEffect(() => {
+    if (transcript) {
+      setInput(transcript);
+    }
+  }, [transcript, setInput]);
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,20 +124,35 @@ export default function Home() {
 
         {/* Input Bar */}
         <div className="p-6">
-          <form onSubmit={handleFormSubmit} className="relative flex items-center">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Tell Jarvis what to do..."
-              className="w-full bg-slate-100 rounded-full py-4 pl-6 pr-16 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:bg-white/10 dark:text-white"
-            />
+          <form onSubmit={handleFormSubmit} className="relative flex items-center gap-3">
+            <div className="relative flex-1 flex items-center">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={isListening ? "Listening..." : "Tell Jarvis what to do..."}
+                className={`w-full bg-slate-100 rounded-full py-4 pl-6 pr-16 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:bg-white/10 dark:text-white transition-all ${
+                  isListening ? "ring-2 ring-cyan-500 bg-cyan-500/5" : ""
+                }`}
+              />
+              <button
+                type="submit"
+                disabled={isSending || !input.trim()}
+                className="absolute right-2 h-10 w-10 flex items-center justify-center rounded-full bg-slate-950 text-white disabled:opacity-50 transition-all active:scale-95 dark:bg-white dark:text-slate-950"
+              >
+                <span className="text-xl">↑</span>
+              </button>
+            </div>
             <button
-              type="submit"
-              disabled={isSending || !input.trim()}
-              className="absolute right-2 h-10 w-10 flex items-center justify-center rounded-full bg-slate-950 text-white disabled:opacity-50 transition-all active:scale-95 dark:bg-white dark:text-slate-950"
+              type="button"
+              onClick={isListening ? stopListening : startListening}
+              className={`h-12 w-12 flex items-center justify-center rounded-full transition-all duration-300 ${
+                isListening 
+                  ? "bg-rose-500 text-white animate-pulse scale-110 shadow-lg shadow-rose-500/20" 
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-white"
+              }`}
             >
-              <span className="text-xl">↑</span>
+              <span className="text-xl">{isListening ? "⏹" : "🎤"}</span>
             </button>
           </form>
         </div>
