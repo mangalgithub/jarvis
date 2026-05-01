@@ -52,7 +52,7 @@ export default function Home() {
   return (
     <div className="flex flex-col h-screen max-w-[1200px] mx-auto p-4 sm:p-6 lg:p-8">
       {/* Header */}
-      <header className="mb-8 flex items-end justify-between">
+      <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">Command Center</p>
           <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Hello, {userName}</h1>
