@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboard } from "@/context/DashboardContext";
-import { PanelCard } from "@/components/dashboard/PanelCard";
+import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { timeAgo } from "@/lib/utils";
 
@@ -55,7 +55,8 @@ export default function HealthPage() {
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {/* Hydration */}
-        <PanelCard title="💧 Hydration">
+        <PanelCard>
+          <SectionTitle title="💧 Hydration" />
           <HealthBar
             label="Water Intake"
             today={health.water.today}
@@ -80,7 +81,8 @@ export default function HealthPage() {
         </PanelCard>
 
         {/* Nutrition */}
-        <PanelCard title="🥗 Nutrition">
+        <PanelCard>
+          <SectionTitle title="🥗 Nutrition" />
           <div className="space-y-6">
             <HealthBar
               label="Calories"
@@ -106,7 +108,8 @@ export default function HealthPage() {
         </PanelCard>
 
         {/* Activity */}
-        <PanelCard title="🏋️ Activity">
+        <PanelCard>
+          <SectionTitle title="🏋️ Activity" />
           <div className="rounded-2xl bg-slate-50 px-4 py-5 dark:bg-white/5 text-center">
             <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Workout Streak</p>
             <p className="mt-2 text-4xl font-bold text-slate-950 dark:text-white">

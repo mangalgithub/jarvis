@@ -79,7 +79,8 @@ export default function FinancePage() {
 
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         {/* Income vs Expense */}
-        <PanelCard title="Income vs Expense">
+        <PanelCard>
+          <SectionTitle title="Income vs Expense" />
           <div className="space-y-6">
             <ProgressRow 
               label="Income" 
@@ -105,7 +106,8 @@ export default function FinancePage() {
         </PanelCard>
 
         {/* Category Breakdown */}
-        <PanelCard title="Category Spend" subtitle={dateRange}>
+        <PanelCard>
+          <SectionTitle title="Category Spend" subtitle={dateRange} />
           <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
             {finance.categoryBreakdown.length === 0 ? (
               <p className="text-sm text-slate-500">No expenses in this period.</p>
@@ -124,7 +126,8 @@ export default function FinancePage() {
         </PanelCard>
 
         {/* Budgets */}
-        <PanelCard title="Budgets">
+        <PanelCard>
+          <SectionTitle title="Budgets" />
           <div className="space-y-4 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
             {finance.budgets.length === 0 ? (
               <p className="text-sm text-slate-500">No budgets set yet.</p>
@@ -144,7 +147,8 @@ export default function FinancePage() {
         </PanelCard>
 
         {/* Savings Goals */}
-        <PanelCard title="Savings Goals" className="xl:col-span-2">
+        <PanelCard className="xl:col-span-2">
+          <SectionTitle title="Savings Goals" />
           <div className="grid gap-4 sm:grid-cols-2">
             {finance.savingsGoals.length === 0 ? (
               <p className="text-sm text-slate-500">No savings goals yet.</p>
@@ -172,7 +176,8 @@ export default function FinancePage() {
         </PanelCard>
 
         {/* Recent Expenses */}
-        <PanelCard title="Recent Expenses" className="xl:col-span-1">
+        <PanelCard className="xl:col-span-1">
+          <SectionTitle title="Recent Expenses" />
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
             {finance.recentExpenses.length === 0 ? (
               <p className="text-sm text-slate-500">No recent expenses.</p>

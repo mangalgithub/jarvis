@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboard } from "@/context/DashboardContext";
-import { PanelCard } from "@/components/dashboard/PanelCard";
+import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 
 export default function ProfilePage() {
   const { dashboard, sendMessage } = useDashboard();
@@ -45,7 +45,8 @@ export default function ProfilePage() {
           </div>
         ) : (
           Object.entries(memory.categories).map(([cat, items]) => (
-            <PanelCard key={cat} title={`${emojiMap[cat] || "📝"} ${cat}`}>
+            <PanelCard key={cat}>
+              <SectionTitle title={`${emojiMap[cat] || "📝"} ${cat}`} />
               <ul className="space-y-3">
                 {items.map((item) => (
                   <li
@@ -74,7 +75,8 @@ export default function ProfilePage() {
         )}
       </div>
 
-      <PanelCard title="System Memory Controls" className="mt-8 border-rose-200/50 dark:border-rose-500/20">
+      <PanelCard className="mt-8 border-rose-200/50 dark:border-rose-500/20">
+        <SectionTitle title="System Memory Controls" />
          <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
            You have complete control over your data. You can ask Jarvis to forget specific facts or clear entire categories.
          </p>

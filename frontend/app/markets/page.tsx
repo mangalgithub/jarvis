@@ -1,7 +1,7 @@
 "use client";
 
 import { useDashboard } from "@/context/DashboardContext";
-import { PanelCard } from "@/components/dashboard/PanelCard";
+import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 
 export default function MarketsPage() {
   const { dashboard, sendMessage } = useDashboard();
@@ -77,7 +77,8 @@ export default function MarketsPage() {
         })}
       </div>
 
-      <PanelCard title="Mutual Funds & Stocks" className="mt-8">
+      <PanelCard className="mt-8">
+        <SectionTitle title="Mutual Funds & Stocks" />
         <p className="text-sm text-slate-500 mb-6">Track your investments by asking Jarvis. Try commands like "Axis bluechip mutual fund NAV".</p>
         <div className="flex flex-wrap gap-2">
            {["Axis Bluechip Fund", "SBI Small Cap", "Reliance Stock", "TCS Price"].map(s => (
