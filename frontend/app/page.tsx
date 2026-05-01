@@ -4,7 +4,7 @@ import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard } from "@/components/dashboard/PanelCard";
 import { money, shortDate } from "@/lib/utils";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 const starterPrompts = [
   "I spent 250 on lunch by UPI",
@@ -30,7 +30,13 @@ export default function Home() {
     userName
   } = useDashboard();
 
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { isListening, transcript, startListening, stopListening } = useSpeechToText();
+
+  // Auto-scroll to bottom whenever messages change
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
 
   useEffect(() => {
     if (transcript) {
@@ -105,10 +111,11 @@ export default function Home() {
               </p>
             </div>
           )}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Quick Actions */}
-        <div className="px-6 py-4 bg-slate-50/50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 overflow-x-auto">
+        <div className="px-6 py-4 bg-slate-50/50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 overflow-x-auto no-scrollbar">
           <div className="flex gap-2 whitespace-nowrap">
             {starterPrompts.map(p => (
               <button
