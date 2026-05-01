@@ -127,9 +127,12 @@ export type DashboardResponse = {
     recentExpenses: Expense[];
     savingsGoals: SavingsGoal[];
     recurringExpenses: RecurringExpense[];
+    trends: { date: string; amount: number }[];
   } | null;
   news: Record<string, NewsCategory> | null;
-  health: HealthData;
+  health: (HealthData & {
+    trends: { date: string; calories: number; protein: number; water: number }[];
+  }) | null;
   memory: MemoryData;
   stocks: StockData;
   reminders: Reminder[];

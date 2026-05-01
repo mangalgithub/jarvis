@@ -2,6 +2,7 @@
 
 import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard } from "@/components/dashboard/PanelCard";
+import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { timeAgo } from "@/lib/utils";
 
 export default function HealthPage() {
@@ -31,6 +32,25 @@ export default function HealthPage() {
         >
           📊 Daily Summary
         </button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <PanelCard className="p-2">
+          <AnalyticsChart 
+            title="7-Day Calorie Intake" 
+            data={health.trends} 
+            dataKey="calories" 
+            color="#f97316" 
+          />
+        </PanelCard>
+        <PanelCard className="p-2">
+          <AnalyticsChart 
+            title="7-Day Protein Intake (g)" 
+            data={health.trends} 
+            dataKey="protein" 
+            color="#8b5cf6" 
+          />
+        </PanelCard>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

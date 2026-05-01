@@ -305,6 +305,34 @@ class HealthAgent:
             },
         }
 
+    async def get_health_trends(self, user_id: str) -> list:
+        now = now_local()
+        trends = []
+        for i in range(6, -1, -1):
+            day = now - timedelta(days=i)
+            start, end = local_day_bounds(day)
+            
+            cal = await self._sum_today(user_id, "nutrition_logs", "calories") # Note: This needs bounds
+            # Wait, _sum_today uses now_local() fixed bounds. I need a bounded sum.
+            
+            # Let's write a better trend helper
+            query = self._date_query(user_id, start, end)
+            
+            n_docs = await get_collection("nutrition_logs").find(query).to_list(length=100)
+            day_cal = sum(d.get("calories", 0) for d in n_docs)
+            day_pro = sum(d.get("protein", 0) for d in n_docs)
+            
+            w_docs = await get_collection("water_logs").find(query).to_list(length=100)
+            day_water = sum(d.get("glasses", 0) for d in w_docs)
+            
+            trends.append({
+                "date": day.strftime("%b %d"),
+                "calories": day_cal,
+                "protein": day_pro,
+                "water": day_water
+            })
+        return trends
+
 
     # ── Internal helpers ───────────────────────────────────────────────────
 

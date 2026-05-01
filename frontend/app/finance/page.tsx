@@ -3,6 +3,7 @@
 import { useDashboard } from "@/context/DashboardContext";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
+import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { money, shortDate } from "@/lib/utils";
 import { Card } from "@heroui/react";
 
@@ -65,6 +66,16 @@ export default function FinancePage() {
         <MetricCard label="Recurring" value={finance.summary.recurringMonthly} />
         <MetricCard label="Filtered Total" value={finance.summary.filteredExpenses} />
       </div>
+
+      {/* Analytics Chart */}
+      <PanelCard className="p-2">
+        <AnalyticsChart 
+          title="7-Day Spending Trend" 
+          data={finance.trends} 
+          dataKey="amount" 
+          color="#06b6d4" 
+        />
+      </PanelCard>
 
       <div className="grid gap-6 lg:grid-cols-2 xl:grid-cols-3">
         {/* Income vs Expense */}

@@ -134,6 +134,22 @@ async def recurring_expenses(user_id: str):
     return {"items": serialized, "total": total}
 
 
+async def finance_trends(user_id: str):
+    import datetime
+    now = now_local()
+    trends = []
+    for i in range(6, -1, -1):
+        day = now - datetime.timedelta(days=i)
+        start = day.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = day.replace(hour=23, minute=59, second=59, microsecond=999999)
+        total = await expense_total(user_id, start, end)
+        trends.append({
+            "date": day.strftime("%b %d"),
+            "amount": total
+        })
+    return trends
+
+
 @router.get("/dashboard")
 async def dashboard(
     date_range: str = "this month",
@@ -181,6 +197,9 @@ async def dashboard(
         logger.error("[dashboard] get_active_reminders failed: %s", exc, exc_info=True)
         reminders_data = []
 
+    f_trends = await finance_trends(user_id)
+    h_trends = await health_agent.get_health_trends(user_id) if health_agent else []
+
     return {
         "finance": {
             "filters": {
@@ -200,9 +219,13 @@ async def dashboard(
             "recentExpenses": await recent_expenses(user_id, filter_start, filter_end, category),
             "savingsGoals": await savings_goals(user_id),
             "recurringExpenses": recurring["items"],
+            "trends": f_trends,
         },
         "news": news_data,
-        "health": health_data,
+        "health": {
+            **(health_data or {}),
+            "trends": h_trends
+        } if health_data else None,
         "memory": memory_data,
         "stocks": stock_data,
         "learning": None,
