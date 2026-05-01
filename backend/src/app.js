@@ -29,9 +29,9 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", service: "jarvis-backend" });
 });
 
-app.use("/api/chat", chatRoutes);
-app.use("/api/dashboard", dashboardRoutes);
-app.use("/api/auth", authRoutes);
+app.use(["/api/chat", "/chat"], chatRoutes);
+app.use(["/api/dashboard", "/dashboard"], dashboardRoutes);
+app.use(["/api/auth", "/auth"], authRoutes);
 
 app.use(errorMiddleware);
 
