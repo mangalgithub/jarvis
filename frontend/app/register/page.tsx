@@ -57,14 +57,14 @@ export default function RegisterPage() {
         <div>
           <form onSubmit={handleRegister} className="flex flex-col gap-4">
             <Input
-              isRequired
+              required
               label="Name"
               placeholder="Enter your name"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
             <Input
-              isRequired
+              required
               label="Email"
               placeholder="Enter your email"
               type="email"
@@ -72,7 +72,7 @@ export default function RegisterPage() {
               onChange={(e) => setEmail(e.target.value)}
             />
             <Input
-              isRequired
+              required
               label="Password"
               placeholder="Create a password"
               type="password"
