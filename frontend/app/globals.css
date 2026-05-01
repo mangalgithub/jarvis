@@ -13,22 +13,22 @@
   --foreground: 226 232 240; /* slate-200 */
 }
 
-/* 🔥 Target actual text elements used */
-body,
-p,
-span,
-div,
-label,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-small,
-strong,
-b,
-a,
-li,button,select,option {
-  color: rgb(var(--foreground)) !important;
+/* Custom scrollbar for a premium feel */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.2);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
+}
+
+/* Base layout styling */
+body {
+  @apply antialiased;
 }

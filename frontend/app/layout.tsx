@@ -1,10 +1,24 @@
-// app/layout.tsx
+"use client";
+
 import "./globals.css";
+import { DashboardProvider } from "@/context/DashboardContext";
+import Sidebar from "@/components/nav/Sidebar";
+import { usePathname } from "next/navigation";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const isAuthPage = pathname === "/login" || pathname === "/register";
+
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-white transition-colors duration-300">
+        <DashboardProvider>
+          {!isAuthPage && <Sidebar />}
+          <main className={!isAuthPage ? "pl-64" : ""}>
+            {children}
+          </main>
+        </DashboardProvider>
+      </body>
     </html>
   );
 }
