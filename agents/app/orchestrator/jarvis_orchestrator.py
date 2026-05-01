@@ -240,6 +240,8 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             )
 
     user_memory = await memory_agent.get_context_string(request.user_id, request.message)
+    if user_memory:
+        print(f"🧠 [RAG Context]: {user_memory}")
 
     context = {
         "user_id": request.user_id,
@@ -264,10 +266,20 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             executed_agents.append(agent_map[intent])
 
     if not executed_agents:
+        # Generate a smart response using the context retrieved via RAG
+        system_prompt = (
+            "You are Jarvis, a helpful and sophisticated personal AI assistant. "
+            "Use the provided user context to personalize your response. "
+            "If the context contains relevant preferences or facts, apply them. "
+            "Keep the response concise, premium, and helpful."
+        )
+        
+        full_prompt = f"{user_memory}\n\nUser: {request.message}"
+        
+        reply = await generate_response(full_prompt, system_prompt=system_prompt)
+        
         return ChatResponse(
-            reply=(
-                "I can hear you. Finance, news, health, memory, stock, learning, and reminder agents are all active!"
-            ),
+            reply=reply,
             actions=[{"type": "intent_detected", "user_id": request.user_id, "intents": intents, "source": intent_source}],
         )
 

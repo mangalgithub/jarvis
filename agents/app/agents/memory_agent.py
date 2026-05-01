@@ -194,7 +194,7 @@ class MemoryAgent:
         top_facts = [
             f"{d['key'].replace('_', ' ')}: {d['value']}" 
             for score, d in scored_docs[:5] 
-            if score > 0.3 # Relevance threshold
+            if score > 0.25 # Lowered threshold to catch more context
         ]
 
         if not top_facts:
