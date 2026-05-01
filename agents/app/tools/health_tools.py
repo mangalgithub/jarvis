@@ -87,11 +87,23 @@ def normalize_health_command(payload: dict) -> dict:
     operation = payload.get("operation")
     if operation not in HEALTH_OPERATIONS:
         operation = "daily_summary"
+
+    nutrition_data = payload.get("nutrition")
+    nutrition = {}
+    if isinstance(nutrition_data, dict):
+        if "items" in nutrition_data and isinstance(nutrition_data["items"], list):
+            total_calories = sum(item.get("calories", 0) for item in nutrition_data["items"] if isinstance(item.get("calories"), (int, float)))
+            total_protein = sum(item.get("protein", 0) for item in nutrition_data["items"] if isinstance(item.get("protein"), (int, float)))
+            meal_name = ", ".join(item.get("name", "") for item in nutrition_data["items"] if item.get("name"))
+            nutrition = {"meal": meal_name, "calories": total_calories, "protein": total_protein}
+        else:
+            nutrition = nutrition_data
+
     return {
         "operation": operation,
         "water": payload.get("water") if isinstance(payload.get("water"), dict) else {},
         "workout": payload.get("workout") if isinstance(payload.get("workout"), dict) else {},
-        "nutrition": payload.get("nutrition") if isinstance(payload.get("nutrition"), dict) else {},
+        "nutrition": nutrition,
         "goal": payload.get("goal") if isinstance(payload.get("goal"), dict) else {},
     }
 
@@ -109,7 +121,7 @@ JSON shape:
   "operation": "log_nutrition",
   "water": {{"glasses": 3, "liters": 0.75}},
   "workout": {{"type": "gym", "duration_minutes": 45, "calories_burned": 300, "notes": "leg day"}},
-  "nutrition": {{"meal": "pizza", "calories": 800, "protein": 35, "carbs": 90, "fat": 30}},
+  "nutrition": {{"items": [{{"name": "2 bananas", "calories": 180, "protein": 2}}, {{"name": "3 tbsp peanut butter", "calories": 285, "protein": 10.5}}]}},
   "goal": {{"water_glasses": 8, "calories": 2000, "protein": 150}}
 }}
 
@@ -127,8 +139,11 @@ If the user mentions a food item WITHOUT exact numbers, ESTIMATE typical values:
 - 1 banana ≈ 90 cal / 1g protein
 - 1 cup oats ≈ 300 cal / 10g protein
 - 1 glass milk ≈ 120 cal / 6g protein
+- 1 tbsp peanut butter ≈ 95 cal / 3.5g protein
+- Almonds/walnuts (handful) ≈ 160 cal / 6g protein
+- Chicken (100g) ≈ 165 cal / 31g protein
 NEVER return null for calories or protein when a food name is present. Always estimate.
-Set "meal" to the food name (e.g. "pizza", "biryani", "oats with milk").
+If the user mentions MULTIPLE foods, create a separate object for EACH food item inside the "items" array. DO NOT sum them up yourself.
 
 Operation routing:
 - drank/water/glass → log_water

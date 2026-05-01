@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 
@@ -247,83 +248,47 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
         "user_memory": user_memory,
     }
 
-    if "expense_tracking" in intents:
-        result = await finance_agent.run(context)
+    agent_map = {
+        "expense_tracking": finance_agent,
+        "news_summary": news_agent,
+        "health_tracking": health_agent,
+        "memory_management": memory_agent,
+        "stock_analysis": stock_agent,
+        "learning_help": learning_agent,
+        "reminder_management": reminder_agent,
+    }
+
+    executed_agents = []
+    for intent in intents:
+        if intent in agent_map and agent_map[intent] not in executed_agents:
+            executed_agents.append(agent_map[intent])
+
+    if not executed_agents:
         return ChatResponse(
-            reply=result["reply"],
-            actions=[
-                {
-                    "type": "intent_detected",
-                    "intents": intents,
-                    "source": intent_source,
-                },
-                *result["actions"],
-            ],
+            reply=(
+                "I can hear you. Finance, news, health, memory, stock, learning, and reminder agents are all active!"
+            ),
+            actions=[{"type": "intent_detected", "user_id": request.user_id, "intents": intents, "source": intent_source}],
         )
 
-    if "news_summary" in intents:
-        result = await news_agent.run(context)
-        return ChatResponse(
-            reply=result["reply"],
-            actions=[
-                {"type": "intent_detected", "intents": intents, "source": intent_source},
-                *result["actions"],
-            ],
-        )
+    # Run all mapped agents concurrently
+    results = await asyncio.gather(*(agent.run(context) for agent in executed_agents), return_exceptions=True)
 
-    if "health_tracking" in intents:
-        result = await health_agent.run(context)
-        return ChatResponse(
-            reply=result["reply"],
-            actions=[
-                {"type": "intent_detected", "intents": intents, "source": intent_source},
-                *result["actions"],
-            ],
-        )
+    combined_reply = []
+    combined_actions = [{"type": "intent_detected", "intents": intents, "source": intent_source}]
 
-    if "memory_management" in intents:
-        result = await memory_agent.run(context)
-        return ChatResponse(
-            reply=result["reply"],
-            actions=[
-                {"type": "intent_detected", "intents": intents, "source": intent_source},
-                *result["actions"],
-            ],
-        )
-
-    if "stock_analysis" in intents:
-        result = await stock_agent.run(context)
-        return ChatResponse(
-            reply=result["reply"],
-            actions=[
-                {"type": "intent_detected", "intents": intents, "source": intent_source},
-                *result["actions"],
-            ],
-        )
-
-    if "learning_help" in intents:
-        result = await learning_agent.run(context)
-        return ChatResponse(
-            reply=result["reply"],
-            actions=[
-                {"type": "intent_detected", "intents": intents, "source": intent_source},
-                *result["actions"],
-            ],
-        )
-
-    if "reminder_management" in intents:
-        result = await reminder_agent.run(context)
-        return ChatResponse(
-            reply=result["reply"],
-            actions=[
-                {"type": "intent_detected", "intents": intents, "source": intent_source},
-                *result["actions"],
-            ],
-        )
+    for i, res in enumerate(results):
+        agent_name = executed_agents[i].name
+        if isinstance(res, Exception):
+            combined_reply.append(f"⚠️ **{agent_name.title()} Agent encountered an error:** {res}")
+            combined_actions.append({"type": f"{agent_name}_error", "error": str(res)})
+        else:
+            if res.get("reply"):
+                combined_reply.append(res["reply"])
+            if res.get("actions"):
+                combined_actions.extend(res["actions"])
 
     return ChatResponse(
-        reply=(
-            "I can hear you. Finance, news, health, memory, stock, learning, and reminder agents are all active!"
-        ),
-        actions=[{"type": "intent_detected", "user_id": request.user_id, "intents": intents, "source": intent_source}],
+        reply="\n\n".join(combined_reply),
+        actions=combined_actions,
     )
