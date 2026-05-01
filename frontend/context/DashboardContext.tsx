@@ -155,6 +155,8 @@ interface DashboardContextType {
   isDarkMode: boolean;
   toggleDarkMode: () => void;
   userName: string;
+  error: string;
+  setError: React.Dispatch<React.SetStateAction<string>>;
   loadDashboard: () => Promise<void>;
   sendMessage: (message: string) => Promise<void>;
   acknowledgeReminder: (reminder: Reminder) => void;

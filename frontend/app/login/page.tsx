@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Card, Input, Button } from "@heroui/react";
+import { Card } from "@heroui/react";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
 
@@ -55,31 +55,40 @@ export default function LoginPage() {
         </div>
         <div>
           <form onSubmit={handleLogin} className="flex flex-col gap-4">
-            <Input
-              required
-              label="Email"
-              placeholder="Enter your email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-            <Input
-              required
-              label="Password"
-              placeholder="Enter your password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
+            <div>
+              <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Email</label>
+              <input
+                required
+                type="email"
+                placeholder="Enter your email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:border-white/10 dark:bg-white/10 dark:text-white"
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-semibold mb-1.5 text-slate-700 dark:text-slate-300">Password</label>
+              <input
+                required
+                type="password"
+                placeholder="Enter your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:border-white/10 dark:bg-white/10 dark:text-white"
+              />
+            </div>
+
             {error && <p className="text-sm text-rose-500">{error}</p>}
-            <Button
+            
+            <button
               type="submit"
-              color="primary"
-              isLoading={loading}
-              className="mt-2 w-full bg-slate-950 text-white dark:bg-white dark:text-slate-950"
+              disabled={loading}
+              className="mt-2 w-full rounded-xl bg-slate-950 py-3 text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 dark:bg-white dark:text-slate-950"
             >
-              Sign In
-            </Button>
+              {loading ? "Signing In..." : "Sign In"}
+            </button>
+            
             <p className="text-center text-sm text-slate-500 mt-4">
               Don't have an account?{" "}
               <button 

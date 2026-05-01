@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useDashboard } from "@/context/DashboardContext";
-import { Button } from "@heroui/react";
 
 const navItems = [
   { href: "/", label: "Chat", icon: "💬" },
