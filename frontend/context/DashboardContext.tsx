@@ -162,7 +162,10 @@ interface DashboardContextType {
   acknowledgeReminder: (reminder: Reminder) => void;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 
+  (typeof window !== "undefined" && window.location.hostname !== "localhost" 
+    ? window.location.origin 
+    : "http://localhost:3000");
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
