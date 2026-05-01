@@ -2,6 +2,7 @@ from datetime import UTC, datetime
 
 from app.core.mongodb import get_collection
 from app.tools.memory_tools import parse_memory_command
+from app.core.embeddings import embedder
 
 CATEGORY_EMOJI = {
     "personal": "👤",
@@ -57,10 +58,17 @@ class MemoryAgent:
             }
 
         now = datetime.now(UTC)
+        embedding = embedder.get_embedding(f"{key}: {value}")
+        
         await get_collection("user_memory").update_one(
             {"user_id": user_id, "key": key},
             {
-                "$set": {"value": value, "category": category, "updated_at": now},
+                "$set": {
+                    "value": value, 
+                    "category": category, 
+                    "embedding": embedding,
+                    "updated_at": now
+                },
                 "$setOnInsert": {"user_id": user_id, "key": key, "created_at": now},
             },
             upsert=True,
@@ -154,15 +162,45 @@ class MemoryAgent:
 
     # ── Context injection helper ───────────────────────────────────────────
 
-    async def get_context_string(self, user_id: str) -> str:
-        """Short text summary of user memory — injected into other agents' prompts."""
-        docs = await get_collection("user_memory").find(
-            {"user_id": user_id}
-        ).to_list(length=50)
+    async def get_context_string(self, user_id: str, current_message: str = "") -> str:
+        """
+        Retrieves relevant user facts using Semantic Search (RAG).
+        If current_message is provided, it finds the most contextually related facts.
+        """
+        docs = await get_collection("user_memory").find({"user_id": user_id}).to_list(length=100)
         if not docs:
             return ""
-        facts = [f"{d['key'].replace('_', ' ')}: {d['value']}" for d in docs]
-        return "User profile — " + " | ".join(facts)
+
+        # If no message provided, just return everything (legacy behavior)
+        if not current_message:
+            facts = [f"{d['key'].replace('_', ' ')}: {d['value']}" for d in docs]
+            return "User profile — " + " | ".join(facts)
+
+        # Perform Semantic Search
+        query_vec = embedder.get_embedding(current_message)
+        scored_docs = []
+        
+        for doc in docs:
+            embedding = doc.get("embedding")
+            if embedding:
+                score = embedder.cosine_similarity(query_vec, embedding)
+                scored_docs.append((score, doc))
+            else:
+                # Fallback for old docs without embeddings
+                scored_docs.append((0.1, doc))
+
+        # Sort by similarity score and take top 5
+        scored_docs.sort(key=lambda x: x[0], reverse=True)
+        top_facts = [
+            f"{d['key'].replace('_', ' ')}: {d['value']}" 
+            for score, d in scored_docs[:5] 
+            if score > 0.3 # Relevance threshold
+        ]
+
+        if not top_facts:
+            return ""
+
+        return "Relevant user context — " + " | ".join(top_facts)
 
     # ── Dashboard helper ───────────────────────────────────────────────────
 

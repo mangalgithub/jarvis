@@ -239,7 +239,7 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
                 ],
             )
 
-    user_memory = await memory_agent.get_context_string(request.user_id)
+    user_memory = await memory_agent.get_context_string(request.user_id, request.message)
 
     context = {
         "user_id": request.user_id,

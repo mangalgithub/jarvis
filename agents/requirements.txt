@@ -11,3 +11,6 @@ apscheduler
 PyJWT
 bcrypt
 pydantic[email]
+sentence-transformers
+numpy
+torch
