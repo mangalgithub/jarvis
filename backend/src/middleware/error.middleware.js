@@ -1,6 +1,6 @@
 function errorMiddleware(error, req, res, next) {
-  console.error(error);
-  res.status(500).json({ error: "Something went wrong" });
+  console.error(error.message || error);
+  res.status(error.status || 500).json({ error: error.message || "Something went wrong" });
 }
 
 module.exports = { errorMiddleware };

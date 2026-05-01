@@ -1,6 +1,8 @@
 import logging
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+
+from app.core.auth import verify_token
 
 from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
@@ -134,9 +136,9 @@ async def recurring_expenses(user_id: str):
 
 @router.get("/dashboard")
 async def dashboard(
-    user_id: str = "default-user",
     date_range: str = "this month",
     category: str | None = None,
+    user_id: str = Depends(verify_token),
 ):
     filter_label, filter_start, filter_end = resolve_date_range(
         {"label": date_range},

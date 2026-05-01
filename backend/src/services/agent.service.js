@@ -1,22 +1,25 @@
 const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL || "http://localhost:8000";
 
-async function sendMessageToAgent({ message, userId }) {
+async function sendMessageToAgent({ message, userId, authHeader }) {
+  const headers = { "Content-Type": "application/json" };
+  if (authHeader) headers["Authorization"] = authHeader;
+
   const response = await fetch(`${AGENT_SERVICE_URL}/agent/chat`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({ message, user_id: userId }),
   });
 
   if (!response.ok) {
-    throw new Error(`Agent service failed with status ${response.status}`);
+    const err = new Error(`Agent service failed with status ${response.status}`);
+    err.status = response.status;
+    throw err;
   }
 
   return response.json();
 }
 
-async function getDashboardFromAgent({ userId, dateRange, category }) {
+async function getDashboardFromAgent({ userId, dateRange, category, authHeader }) {
   const searchParams = new URLSearchParams();
   searchParams.set("user_id", userId || "default-user");
 
@@ -28,10 +31,17 @@ async function getDashboardFromAgent({ userId, dateRange, category }) {
     searchParams.set("category", category);
   }
 
-  const response = await fetch(`${AGENT_SERVICE_URL}/agent/dashboard?${searchParams}`);
+  const headers = {};
+  if (authHeader) headers["Authorization"] = authHeader;
+
+  const response = await fetch(`${AGENT_SERVICE_URL}/agent/dashboard?${searchParams}`, {
+    headers
+  });
 
   if (!response.ok) {
-    throw new Error(`Agent dashboard failed with status ${response.status}`);
+    const err = new Error(`Agent dashboard failed with status ${response.status}`);
+    err.status = response.status;
+    throw err;
   }
 
   return response.json();

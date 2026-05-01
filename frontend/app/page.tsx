@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@heroui/react";
 
 type Message = {
@@ -740,7 +741,9 @@ function NewsPanel({
 }
 
 export default function Home() {
+  const router = useRouter();
   const { dark, toggle, mounted } = useDarkMode();
+  const [userName, setUserName] = useState("User");
 
   const [messages, setMessages] = useState<Message[]>([
     {
@@ -781,6 +784,13 @@ export default function Home() {
     setIsDashboardLoading(true);
 
     try {
+      const token = localStorage.getItem("jarvis_token");
+      if (!token) {
+        router.push("/login");
+        return;
+      }
+      setUserName(localStorage.getItem("jarvis_name") || "User");
+
       const searchParams = new URLSearchParams({
         userId: "default-user",
         dateRange,
@@ -792,7 +802,14 @@ export default function Home() {
 
       const response = await fetch(
         `${API_BASE_URL}/api/dashboard?${searchParams}`,
+        { headers: { Authorization: `Bearer ${token}` } }
       );
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/login");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`Request failed with status ${response.status}`);
@@ -817,7 +834,9 @@ export default function Home() {
   }, [loadDashboard]);
 
   useEffect(() => {
-    const wsUrl = API_BASE_URL.replace(/^http/, "ws") + "/api/ws/default-user";
+    const token = localStorage.getItem("jarvis_token");
+    if (!token) return;
+    const wsUrl = API_BASE_URL.replace(/^http/, "ws") + `/api/ws/default-user?token=${token}`;
     const ws = new WebSocket(wsUrl);
 
     ws.onmessage = (event) => {
@@ -875,16 +894,24 @@ export default function Home() {
     ]);
 
     try {
+      const token = localStorage.getItem("jarvis_token");
       const response = await fetch(`${API_BASE_URL}/api/chat`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           userId: "default-user",
           message: trimmedMessage,
         }),
       });
+
+      if (response.status === 401) {
+        localStorage.clear();
+        router.push("/login");
+        return;
+      }
 
       if (!response.ok) {
         throw new Error(`Request failed with status ${response.status}`);
@@ -927,10 +954,11 @@ export default function Home() {
   }
 
   function acknowledgeReminder(reminder: Reminder) {
+    const token = localStorage.getItem("jarvis_token");
     // Send acknowledge to backend
     fetch(`${API_BASE_URL}/api/chat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
       body: JSON.stringify({ userId: "default-user", message: `acknowledge reminder ${reminder._id}` }),
     }).catch(console.error);
 
@@ -960,6 +988,16 @@ export default function Home() {
                   className="rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-slate-50 hover:shadow-md dark:border-white/10 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                 >
                   {dark ? "☀️ Light" : "🌙 Dark"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    localStorage.clear();
+                    router.push("/login");
+                  }}
+                  className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-100 hover:shadow-md dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-100 dark:hover:bg-rose-500/15"
+                >
+                  Logout
                 </button>
               </div>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-600 dark:text-slate-400">

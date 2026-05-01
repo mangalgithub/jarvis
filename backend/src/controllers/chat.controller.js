@@ -8,7 +8,8 @@ async function handleChat(req, res, next) {
       return res.status(400).json({ error: "message is required" });
     }
 
-    const response = await sendMessageToAgent({ message, userId });
+    const authHeader = req.headers.authorization;
+    const response = await sendMessageToAgent({ message, userId, authHeader });
     return res.json(response);
   } catch (error) {
     return next(error);

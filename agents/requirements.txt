@@ -8,3 +8,6 @@ groq
 yfinance
 mftool
 apscheduler
+PyJWT
+bcrypt
+pydantic[email]

@@ -5,6 +5,8 @@ from typing import Dict, List
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from app.core.auth import verify_token_from_query
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
@@ -43,12 +45,22 @@ manager = ConnectionManager()
 
 
 @router.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: str):
-    await manager.connect(websocket, user_id)
+async def websocket_endpoint(websocket: WebSocket, user_id: str, token: str = None):
+    try:
+        if not token:
+            await websocket.close(code=1008)
+            return
+        actual_user_id = verify_token_from_query(token)
+    except Exception as e:
+        logger.error("Websocket auth failed: %s", e)
+        await websocket.close(code=1008)
+        return
+
+    await manager.connect(websocket, actual_user_id)
     try:
         while True:
             # We don't really expect client to send anything, but we keep connection open
             data = await websocket.receive_text()
             # Can handle incoming messages if needed, e.g. ping/pong
     except WebSocketDisconnect:
-        manager.disconnect(websocket, user_id)
+        manager.disconnect(websocket, actual_user_id)
