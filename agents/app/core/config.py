@@ -18,6 +18,7 @@ class Settings(BaseModel):
         "GROQ_API_URL",
         "https://api.groq.com/openai/v1/chat/completions",
     )
+    google_api_key: str | None = getenv("GOOGLE_API_KEY") or getenv("GEMINI_API_KEY")
     news_api_key: str | None = getenv("NEWS_API_KEY")
     youtube_api_key: str | None = getenv("YOUTUBE_API_KEY")
     secret_key: str = getenv("SECRET_KEY", "super-secret-key-for-jarvis-os-32")

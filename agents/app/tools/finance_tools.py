@@ -312,6 +312,7 @@ Rules:
 - For salary/income credits, use log_income.
 - For recurring bills/subscriptions, use set_recurring.
 - For savings targets, use set_savings_goal.
+- If message has '[IMAGE ANALYSIS: ...]', use it to log receipts/food.
 
 User message: {message}
 """

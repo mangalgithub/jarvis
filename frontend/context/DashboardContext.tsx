@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 export type Message = {
   role: "user" | "assistant";
   content: string;
+  image?: string;
   actions?: AgentAction[];
 };
 
@@ -158,7 +159,7 @@ interface DashboardContextType {
   error: string;
   setError: React.Dispatch<React.SetStateAction<string>>;
   loadDashboard: () => Promise<void>;
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string, image?: string) => Promise<void>;
   acknowledgeReminder: (reminder: Reminder) => void;
 }
 
@@ -302,14 +303,14 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     return () => ws.close();
   }, []);
 
-  const sendMessage = async (message: string) => {
+  const sendMessage = async (message: string, image?: string) => {
     const trimmedMessage = message.trim();
     if (!trimmedMessage || isSending) return;
 
     setInput("");
     setError("");
     setIsSending(true);
-    setMessages((current) => [...current, { role: "user", content: trimmedMessage }]);
+    setMessages((current) => [...current, { role: "user", content: trimmedMessage, image }]);
 
     try {
       const token = localStorage.getItem("jarvis_token");
@@ -319,7 +320,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${token}`,
         },
-        body: JSON.stringify({ userId: "default-user", message: trimmedMessage }),
+        body: JSON.stringify({ userId: "default-user", message: trimmedMessage, image }),
       });
 
       if (response.status === 401) {

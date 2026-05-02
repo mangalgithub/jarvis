@@ -155,9 +155,11 @@ Operation routing:
 - calories this week/today → query_nutrition
 - set water goal → set_water_goal
 - set calorie/protein goal → set_nutrition_goal
-- health summary/overview → daily_summary
-
 Return ONLY JSON. No markdown. No explanation.
+
+SPECIAL INSTRUCTION FOR VISION:
+CRITICAL: If the message contains a '[IMAGE ANALYSIS: ...]' tag that describes food, you MUST use the operation 'log_nutrition'. Extract the food name and any estimated calories/protein from the analysis into the "nutrition" object. Ignore if the user asks "how many calories", ALWAYS log it if an image analysis is present!
+
 User message: {message}
 """
     try:

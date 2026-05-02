@@ -10,6 +10,7 @@ from app.agents.stock_agent import StockAgent
 from app.agents.learning_agent import LearningAgent
 from app.agents.reminder_agent import ReminderAgent
 from app.core.llm import LLMUnavailableError, generate_response
+from app.core.vision import vision_service
 from app.schemas.chat import ChatRequest, ChatResponse
 
 finance_agent = FinanceAgent()
@@ -165,6 +166,21 @@ User message: {message}
 
 
 async def run_orchestrator(request: ChatRequest) -> ChatResponse:
+    # ── Vision Integration ──
+    print(f"DEBUG: Orchestrator received message: '{request.message}'")
+    print(f"DEBUG: Orchestrator received image: {'[IMAGE DATA PRESENT]' if request.image else '[NO IMAGE]'}")
+    
+    if request.image:
+        vision_prompt = (
+            "You are Jarvis Vision. Analyze this image and provide a concise, factual description "
+            "that can be used by other AI agents. If it's a receipt, list the total amount and items. "
+            "If it's food, identify the meal and estimate calories/protein. "
+            "User Message accompanying the image: " + request.message
+        )
+        vision_analysis = await vision_service.analyze_image(request.image, vision_prompt)
+        print(f"DEBUG: Vision Analysis Result: {vision_analysis[:100]}...")
+        request.message = f"[IMAGE ANALYSIS: {vision_analysis}]\nUser Message: {request.message}"
+
     direct_finance_action = re.search(
         r"\b(?:delete|update)\s+expense\s+id\s+[a-fA-F0-9]{24}\b",
         request.message,

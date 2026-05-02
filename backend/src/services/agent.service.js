@@ -1,13 +1,13 @@
 const AGENT_SERVICE_URL = process.env.AGENT_SERVICE_URL || "http://localhost:8000";
 
-async function sendMessageToAgent({ message, userId, authHeader }) {
+async function sendMessageToAgent({ message, image, userId, authHeader }) {
   const headers = { "Content-Type": "application/json" };
   if (authHeader) headers["Authorization"] = authHeader;
 
   const response = await fetch(`${AGENT_SERVICE_URL}/agent/chat`, {
     method: "POST",
     headers,
-    body: JSON.stringify({ message, user_id: userId }),
+    body: JSON.stringify({ message, image, user_id: userId }),
   });
 
   if (!response.ok) {

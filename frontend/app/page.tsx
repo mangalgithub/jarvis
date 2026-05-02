@@ -4,7 +4,7 @@ import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard } from "@/components/dashboard/PanelCard";
 import { money, shortDate } from "@/lib/utils";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 const starterPrompts = [
   "I spent 250 on lunch by UPI",
@@ -31,6 +31,8 @@ export default function Home() {
   } = useDashboard();
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const { isListening, transcript, startListening, stopListening } = useSpeechToText();
 
   // Auto-scroll to bottom whenever messages change
@@ -44,9 +46,22 @@ export default function Home() {
     }
   }, [transcript, setInput]);
 
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSelectedImage(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    void sendMessage(input);
+    void sendMessage(input, selectedImage || undefined);
+    setSelectedImage(null);
+    setInput("");
   };
 
   return (
@@ -80,6 +95,15 @@ export default function Home() {
                   ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
                   : "bg-slate-100 text-slate-800 dark:bg-white/10 dark:text-slate-200"
               }`}>
+                {msg.image && (
+                  <div className="mb-3">
+                    <img 
+                      src={msg.image} 
+                      alt="User uploaded" 
+                      className="max-h-60 w-auto rounded-lg shadow-md border border-current/10" 
+                    />
+                  </div>
+                )}
                 {msg.content}
                 {msg.actions && msg.actions.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-current/10 flex flex-wrap gap-2">
@@ -129,22 +153,55 @@ export default function Home() {
           </div>
         </div>
 
+        {/* Image Preview */}
+        {selectedImage && (
+          <div className="px-6 py-2">
+            <div className="relative inline-block">
+              <img 
+                src={selectedImage} 
+                alt="Selected" 
+                className="h-20 w-20 object-cover rounded-xl border-2 border-cyan-500 shadow-lg" 
+              />
+              <button 
+                onClick={() => setSelectedImage(null)}
+                className="absolute -top-2 -right-2 bg-rose-500 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Input Bar */}
         <div className="p-6">
           <form onSubmit={handleFormSubmit} className="relative flex items-center gap-3">
+            <input 
+              type="file" 
+              ref={fileInputRef} 
+              onChange={handleImageSelect} 
+              accept="image/*" 
+              className="hidden" 
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="h-12 w-12 flex items-center justify-center rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/10 dark:text-white transition-all active:scale-95"
+            >
+              <span className="text-xl">📷</span>
+            </button>
             <div className="relative flex-1 flex items-center">
               <input
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder={isListening ? "Listening..." : "Tell Jarvis what to do..."}
+                placeholder={isListening ? "Listening..." : (selectedImage ? "Describe this image..." : "Tell Jarvis what to do...")}
                 className={`w-full bg-slate-100 rounded-full py-4 pl-6 pr-16 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-cyan-500 dark:bg-white/10 dark:text-white transition-all ${
                   isListening ? "ring-2 ring-cyan-500 bg-cyan-500/5" : ""
                 }`}
               />
               <button
                 type="submit"
-                disabled={isSending || !input.trim()}
+                disabled={isSending || (!input.trim() && !selectedImage)}
                 className="absolute right-2 h-10 w-10 flex items-center justify-center rounded-full bg-slate-950 text-white disabled:opacity-50 transition-all active:scale-95 dark:bg-white dark:text-slate-950"
               >
                 <span className="text-xl">↑</span>
