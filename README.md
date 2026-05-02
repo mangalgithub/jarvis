@@ -1,125 +1,59 @@
 # Jarvis Personal OS 🤖
+**The Ultimate AI-Powered Personal Operating System.**
 
-Jarvis is a powerful, multi-cloud personal operating system designed to be your ultimate AI assistant. It integrates finance tracking, health monitoring, real-time news briefings, and market insights into a beautiful, unified dashboard accessible from any device.
+Jarvis is a cutting-edge, multimodal AI assistant designed to manage your life with intelligence, context, and vision. Unlike generic chatbots, Jarvis remembers your preferences, tracks your physical health, manages your finances, and provides real-time market and news insights through a stunning glassmorphic dashboard.
 
-## 🚀 Live Demo
-- **Frontend/Backend:** Deployed on [Vercel](https://vercel.com)
-- **AI Agents:** Deployed on [Hugging Face Spaces](https://huggingface.co/spaces) (Docker)
+---
 
-## ✨ Features
+## 👁️ Vision Intelligence (Multimodal)
+- **AI Nutritionist:** Snap a photo of your food. Jarvis identifies the meal and automatically logs estimated calories and protein.
+- **Smart Receipts:** Show Jarvis a shopping bill or restaurant receipt. He extracts the total and items to log your expenses instantly.
+- **Visual Context:** Jarvis "sees" what you see, allowing for natural conversations about images.
 
-### 💬 Intelligence & Memory
-- **Proactive AI:** Jarvis learns about your preferences, habits, and goals through natural conversation.
-- **Contextual Memory:** Remembers personal details (diet, work, preferences) to provide tailored advice.
-- **Morning Briefing:** Get a personalized summary of your day, including weather, news, and tasks.
-- **Voice Interaction:** Native Speech-to-Text for hands-free commands.
-- **Memory Audit:** View and manage everything Jarvis knows about you in the Profile section.
+## 🎙️ Voice & Sound
+- **Hands-Free Control:** Integrated Speech-to-Text (STT) allows you to command Jarvis with your voice.
+- **Audio Feedback:** Real-time visualizers and sound effects for a premium, interactive experience.
 
-### 💰 Finance Management
-- **Natural Language Logging:** Log expenses like "I spent 500 on coffee at Starbucks".
-- **Intelligent Categorization:** Automatically assigns categories to your spending.
-- **Budget Monitoring:** Set monthly budgets for specific categories and track progress.
-- **Investment Insights:** Ask for mutual fund NAVs or stock prices instantly.
-- **Savings Goals:** Track progress toward major purchases or financial milestones.
+## 🧠 Contextual Memory & RAG
+- **Deep Personalization:** Jarvis remembers your diet (e.g., "I am vegetarian"), your work habits, and your favorite topics.
+- **Memory Audit:** A dedicated profile section where you can see exactly what Jarvis has learned about you.
+- **Contextual Agency:** Every agent (Health, Finance, News) uses your memory to give better, personalized advice.
 
-### 🏥 Health & Wellness
-- **Water Tracker:** Log glasses of water and visualize your daily hydration goal.
-- **Macro Tracking:** Log calorie and protein intake to stay on top of your fitness goals.
-- **Workout Logs:** Keep track of your gym sessions and workout consistency.
-- **Health Trends:** Visualize your health data over time with integrated charts.
+## 💰 Advanced Finance Agent
+- **Natural Language Logging:** "Spent 500 on dinner at Pizza Hut" — Jarvis handles the rest.
+- **Categorization:** Automatically sorts spending into Food, Travel, Bills, Shopping, etc.
+- **Budgets & Goals:** Set monthly limits and track progress toward major savings goals.
+- **Investment Insights:** Instant access to stock prices and mutual fund performance.
 
-### 📰 Daily Briefings
-- **Curated News:** Stay updated with news from India, the World, and the AI industry.
-- **AI Summary Engine:** Jarvis can read and summarize long articles so you don't have to.
-- **Category Tabs:** Switch between different news interests effortlessly.
+## 🏥 Health & Wellness Agent
+- **Macro Tracking:** Precise logging of calories and protein with daily goal visualizations.
+- **Hydration Tracker:** Interactive water logging to keep you hydrated throughout the day.
+- **Workout Consistency:** Log your exercise sessions and track your weekly streaks.
+- **Progress Charts:** High-performance Recharts integration for visual health trends.
 
-### 📈 Market Insights
-- **Live Market Tracking:** Real-time data for major indices like Nifty 50 and Sensex.
-- **Portfolio Monitoring:** Ask Jarvis about your stock performance or current prices.
-- **Market News:** Get the latest news specifically related to financial markets.
+## 📈 Real-time Market & News
+- **Live Indices:** Real-time tracking of Nifty 50, Sensex, and global market trends.
+- **Curated News:** AI-filtered news across Tech, World, and Markets.
+- **AI Summarizer:** Jarvis can read and summarize any news article in seconds.
+
+## ⚡ Technical Superpowers
+- **Orchestrator Architecture:** A sophisticated brain that routes your requests to the specialized Health, Finance, News, or Stock agents.
+- **Real-time Sync:** WebSockets ensure your dashboard updates instantly across all devices.
+- **Multi-Cloud Deployment:** Powered by Vercel (Frontend/Backend) and Hugging Face (AI Core).
 
 ---
 
 ## 🛠️ Tech Stack
-
-- **Frontend:** Next.js 15, Tailwind CSS, Framer Motion, HeroUI
-- **Backend:** Node.js (Express), WebSocket for real-time notifications
-- **AI Service:** Python (FastAPI), LangChain, Sentence-Transformers
-- **Database:** MongoDB Atlas
-- **Infrastructure:** Multi-cloud (Vercel + Hugging Face)
+- **Frontend:** Next.js 15, Tailwind CSS, Framer Motion, HeroUI, Recharts.
+- **Backend:** Node.js, Express, Socket.io, MongoDB Atlas.
+- **AI Agents:** Python, FastAPI, LangChain, Gemini 2.5 Flash, Groq (Llama 3), Sentence-Transformers.
 
 ---
 
-## ⚙️ Setup & Installation
-
-### 1. Prerequisites
-- Node.js (v18+)
-- Python 3.10+
-- MongoDB Atlas Account
-- Hugging Face Account
-
-### 2. Environment Variables
-
-Create `.env` files in the respective directories:
-
-**Root / Backend:**
-```env
-MONGODB_URI=your_mongodb_atlas_uri
-SECRET_KEY=your_jwt_secret
-AGENT_SERVICE_URL=https://your-hf-space-url.hf.space
-```
-
-**Frontend:**
-```env
-NEXT_PUBLIC_API_BASE_URL=https://your-vercel-domain.com
-```
-
-**Agents (Python):**
-```env
-MONGODB_URI=your_mongodb_atlas_uri
-SECRET_KEY=your_jwt_secret
-HF_TOKEN=your_huggingface_token
-```
-
-### 3. Running Locally
-
-**Start the Backend:**
-```bash
-cd backend
-npm install
-npm run dev
-```
-
-**Start the Agents:**
-```bash
-cd agents
-pip install -r requirements.txt
-uvicorn main:app --reload
-```
-
-**Start the Frontend:**
-```bash
-cd frontend
-npm install
-npm run dev
-```
+## 📦 Deployment Guide
+1. **GitHub:** Connect your repo to Vercel for the Frontend/Backend.
+2. **Hugging Face:** Create a Docker Space for the `agents/` folder.
+3. **Environment:** Ensure `GOOGLE_API_KEY`, `GROQ_API_KEY`, and `MONGODB_URI` are set in the cloud variables.
 
 ---
-
-## 📦 Deployment
-
-### Vercel (Frontend & Backend)
-The project includes a `vercel.json` for multi-service deployment.
-1. Connect your GitHub repo to Vercel.
-2. Set the Environment Variables in the Vercel Dashboard.
-3. Deploy!
-
-### Hugging Face (AI Agents)
-1. Create a new Docker Space on Hugging Face.
-2. Upload the `agents/` directory.
-3. Hugging Face will automatically build and deploy using the provided `Dockerfile`.
-
----
-
-## 📜 License
-MIT License. Created by Mangal Gupta.
+*Created with ❤️ by Mangal Gupta.*
