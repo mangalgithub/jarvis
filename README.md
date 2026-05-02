@@ -9,27 +9,34 @@ Jarvis is a powerful, multi-cloud personal operating system designed to be your 
 ## ✨ Features
 
 ### 💬 Intelligence & Memory
-- **Proactive AI:** Jarvis learns about your preferences, habits, and goals.
+- **Proactive AI:** Jarvis learns about your preferences, habits, and goals through natural conversation.
 - **Contextual Memory:** Remembers personal details (diet, work, preferences) to provide tailored advice.
+- **Morning Briefing:** Get a personalized summary of your day, including weather, news, and tasks.
 - **Voice Interaction:** Native Speech-to-Text for hands-free commands.
+- **Memory Audit:** View and manage everything Jarvis knows about you in the Profile section.
 
 ### 💰 Finance Management
-- **Automatic Logging:** Log expenses via natural language (e.g., "Spent 500 on dinner").
-- **Budget Tracking:** Set monthly limits and get real-time progress bars.
-- **Visual Analytics:** 7-day spending trends and category-wise breakdowns.
+- **Natural Language Logging:** Log expenses like "I spent 500 on coffee at Starbucks".
+- **Intelligent Categorization:** Automatically assigns categories to your spending.
+- **Budget Monitoring:** Set monthly budgets for specific categories and track progress.
+- **Investment Insights:** Ask for mutual fund NAVs or stock prices instantly.
+- **Savings Goals:** Track progress toward major purchases or financial milestones.
 
 ### 🏥 Health & Wellness
-- **Hydration Tracking:** Monitor water intake against daily goals.
-- **Nutrition:** Log calories and protein to maintain your fitness streak.
-- **Workout Insights:** Tracks your exercise consistency and last activity.
+- **Water Tracker:** Log glasses of water and visualize your daily hydration goal.
+- **Macro Tracking:** Log calorie and protein intake to stay on top of your fitness goals.
+- **Workout Logs:** Keep track of your gym sessions and workout consistency.
+- **Health Trends:** Visualize your health data over time with integrated charts.
 
 ### 📰 Daily Briefings
-- **Curated News:** Real-time briefings across India, World, and AI categories.
-- **AI Summaries:** Ask Jarvis to summarize complex articles for you.
+- **Curated News:** Stay updated with news from India, the World, and the AI industry.
+- **AI Summary Engine:** Jarvis can read and summarize long articles so you don't have to.
+- **Category Tabs:** Switch between different news interests effortlessly.
 
 ### 📈 Market Insights
-- **Live Indices:** Track Nifty 50 and other global markets.
-- **Stock Tracking:** Get instant updates on stock prices and performance.
+- **Live Market Tracking:** Real-time data for major indices like Nifty 50 and Sensex.
+- **Portfolio Monitoring:** Ask Jarvis about your stock performance or current prices.
+- **Market News:** Get the latest news specifically related to financial markets.
 
 ---
 
