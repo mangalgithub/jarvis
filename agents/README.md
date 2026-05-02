@@ -1,10 +1,11 @@
 ---
 title: Jarvis Agents
 emoji: 🤖
-colorFrom: cyan
-colorTo: blue
+colorFrom: blue
+colorTo: indigo
 sdk: docker
 pinned: false
+app_port: 7860
 ---
 
 # Jarvis Agent Service
