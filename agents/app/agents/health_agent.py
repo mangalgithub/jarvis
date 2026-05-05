@@ -26,6 +26,14 @@ class HealthAgent:
         command = await parse_health_command(message, user_memory)
         operation = command["operation"]
 
+        # ── High-Fidelity Clarification Support ──
+        # If the parser found the input ambiguous, it will provide a 'reply_override'.
+        if command.get("reply_override"):
+            return {
+                "reply": command["reply_override"],
+                "actions": [{"type": "health_clarification_requested", "operation": operation}]
+            }
+
         try:
             if operation == "log_water":
                 return await self._log_water(user_id, command)
@@ -43,6 +51,8 @@ class HealthAgent:
                 return await self._set_water_goal(user_id, command)
             if operation == "set_nutrition_goal":
                 return await self._set_nutrition_goal(user_id, command)
+            if operation == "ask_clarification":
+                return {"reply": command.get("reply_override", "Could you please provide more details?"), "actions": []}
             return await self._daily_summary(user_id)
         except Exception as error:
             return {

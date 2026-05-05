@@ -1,10 +1,40 @@
 import json
 import re
 from datetime import UTC, datetime, time, timedelta, timezone
-
 from app.core.llm import LLMUnavailableError, generate_response
 
 LOCAL_TIMEZONE = timezone(timedelta(hours=5, minutes=30))
+
+# --- ELITE NUTRITION DATABASE (V4) ---
+# Format: "key": {"serving_weight": grams, "cal_per_100g": cal, "pro_per_100g": pro, "fat_per_100g": fat}
+# We use dish-level macros, not raw ingredient macros.
+FOOD_DB = {
+    # Composite Dishes (Dish-level macros)
+    "chicken curry": {"serving_weight": 200, "cal_per_100g": 130, "pro_per_100g": 10.0, "fat_per_100g": 7.0},
+    "mutton curry": {"serving_weight": 200, "cal_per_100g": 180, "pro_per_100g": 12.0, "fat_per_100g": 12.0},
+    "paneer curry": {"serving_weight": 200, "cal_per_100g": 160, "pro_per_100g": 7.0, "fat_per_100g": 12.0},
+    "dal tadka": {"serving_weight": 150, "cal_per_100g": 90, "pro_per_100g": 4.5, "fat_per_100g": 4.0},
+    "biryani": {"serving_weight": 350, "cal_per_100g": 160, "pro_per_100g": 6.5, "fat_per_100g": 7.0},
+    "pizza": {"serving_weight": 100, "cal_per_100g": 266, "pro_per_100g": 11.0, "fat_per_100g": 10.0},
+    "burger": {"serving_weight": 200, "cal_per_100g": 250, "pro_per_100g": 13.0, "fat_per_100g": 12.0},
+    
+    # Base Proteins (Cooked macros)
+    "chicken": {"serving_weight": 100, "cal_per_100g": 165, "pro_per_100g": 31.0, "fat_per_100g": 3.6},
+    "egg": {"serving_weight": 50, "cal_per_100g": 143, "pro_per_100g": 12.6, "fat_per_100g": 10.0},
+    "fish": {"serving_weight": 150, "cal_per_100g": 120, "pro_per_100g": 20.0, "fat_per_100g": 4.0},
+    
+    # Staples
+    "roti": {"serving_weight": 35, "cal_per_100g": 230, "pro_per_100g": 8.0, "fat_per_100g": 2.0},
+    "rice": {"serving_weight": 150, "cal_per_100g": 130, "pro_per_100g": 2.7, "fat_per_100g": 0.3},
+    "paratha": {"serving_weight": 80, "cal_per_100g": 300, "pro_per_100g": 6.0, "fat_per_100g": 15.0},
+    
+    # Snacks & Fruits
+    "almond": {"serving_weight": 1.2, "cal_per_100g": 579, "pro_per_100g": 21.2, "fat_per_100g": 49.9},
+    "walnut": {"serving_weight": 4.0, "cal_per_100g": 654, "pro_per_100g": 15.2, "fat_per_100g": 65.2},
+    "banana": {"serving_weight": 110, "cal_per_100g": 89, "pro_per_100g": 1.1, "fat_per_100g": 0.3},
+    "apple": {"serving_weight": 180, "cal_per_100g": 52, "pro_per_100g": 0.3, "fat_per_100g": 0.2},
+    "milk": {"serving_weight": 250, "cal_per_100g": 62, "pro_per_100g": 3.2, "fat_per_100g": 3.3},
+}
 
 HEALTH_OPERATIONS = {
     "log_water", "log_workout", "log_nutrition",
@@ -18,16 +48,137 @@ WORKOUT_TYPES = {
     "basketball", "tennis", "badminton", "other",
 }
 
+# Sort DB by key length (descending) to match "chicken curry" before "chicken"
+SORTED_FOOD_KEYS = sorted(FOOD_DB.keys(), key=len, reverse=True)
+
+def _calculate_elite_nutrition(items: list[dict]) -> dict:
+    """Calculates nutrition with priority matching, composite dish logic, and density guardrails."""
+    total_cal = 0.0
+    total_pro = 0.0
+    confidence = 1.0
+    clarifications = []
+    processed_names = []
+
+    for item in items:
+        raw_name = item.get("name", "").lower()
+        qty = float(item.get("qty") or 1)
+        unit = item.get("unit", "piece").lower()
+        context = item.get("context", "home").lower()
+
+        # 1. Priority-Based Entity Matching (Match long strings first)
+        db_match = None
+        for key in SORTED_FOOD_KEYS:
+            if key in raw_name:
+                db_match = FOOD_DB[key]
+                break
+        
+        if not db_match:
+            confidence *= 0.5
+            clarifications.append(f"I don't have nutrition data for '{raw_name}'.")
+            continue
+
+        # 2. Dish-Specific Serving Resolution
+        # If user says 'bowl', and we have a serving_weight, we use it as a base.
+        base_weight = db_match["serving_weight"]
+        if unit == "gram":
+            total_weight = qty
+        elif unit in ["bowl", "plate", "cup"]:
+            total_weight = qty * base_weight # Assume 1 bowl = 1 standard serving for that food
+        else:
+            total_weight = qty * base_weight # Default to pieces/servings
+
+        # 3. Context & Hidden Fat Layer (Scalar, not additive)
+        # Restaurant food is usually 20-30% more calorie dense due to oils.
+        multiplier = 1.25 if context == "restaurant" or "oily" in context else 1.0
+        
+        # 4. Deterministic Calculation
+        cal = (total_weight / 100.0) * db_match["cal_per_100g"] * multiplier
+        pro = (total_weight / 100.0) * db_match["pro_per_100g"]
+        
+        # 5. Protein Density Guardrail (The "Anti-Hallucination" check)
+        # 100g of food almost never has more than 35g protein.
+        protein_density = pro / total_weight if total_weight > 0 else 0
+        if protein_density > 0.35:
+            confidence *= 0.4
+            clarifications.append(f"The protein in '{raw_name}' seems suspiciously high. Is this raw meat?")
+
+        total_cal += cal
+        total_pro += pro
+        processed_names.append(f"{qty} {raw_name}")
+
+    return {
+        "meal": ", ".join(processed_names),
+        "calories": round(total_cal, 1),
+        "protein": round(total_pro, 1),
+        "confidence": round(confidence, 2),
+        "clarification": clarifications[0] if clarifications else None
+    }
+
+async def parse_health_command(message: str, user_memory: str = "") -> dict:
+    current_date = now_local().date().isoformat()
+    prompt = f"""You are Jarvis's elite health parser. Today: {current_date}
+Extract entities into strict JSON.
+
+{{
+  "operation": "log_nutrition",
+  "nutrition": {{
+    "items": [
+      {{ "name": "chicken curry", "qty": 1, "unit": "bowl", "context": "restaurant" }}
+    ]
+  }}
+}}
+
+RULES:
+1. ONLY extract name, qty, unit, context. No calculations.
+2. If multiple foods, list them separately.
+3. If image analysis is present ('[IMAGE ANALYSIS: ...]'), prioritize its entities.
+
+User message: {message}
+"""
+    try:
+        response_text = await generate_response(
+            prompt,
+            system_prompt="Strict JSON extractor. No markdown. No chatter.",
+            temperature=0,
+        )
+        payload = _parse_json(response_text)
+        
+        if not payload:
+             return {"operation": "parse_error", "reply_override": "I couldn't quite parse that health command. Could you try rephrasing?"}
+
+        if payload.get("operation") == "log_nutrition":
+            items = payload.get("nutrition", {}).get("items", [])
+            analysis = _calculate_elite_nutrition(items)
+            
+            # Use real clarification if present, otherwise fallback
+            if analysis["confidence"] < 0.6 or analysis["clarification"]:
+                reason = analysis["clarification"] if analysis["clarification"] else "I'm a bit unsure about those portions."
+                payload["reply_override"] = f"🤔 {reason} Please clarify so I can log it accurately."
+                payload["operation"] = "ask_clarification"
+            
+            payload["nutrition"] = analysis
+            
+        return normalize_health_command(payload)
+    except Exception as e:
+        print(f"Health parse error: {e}")
+        return {"operation": "error", "reply_override": "I encountered an error while processing your health data."}
+
+def normalize_health_command(payload: dict) -> dict:
+    return {
+        "operation": payload.get("operation", "daily_summary"),
+        "water": payload.get("water", {}),
+        "workout": payload.get("workout", {}),
+        "nutrition": payload.get("nutrition", {}),
+        "reply_override": payload.get("reply_override")
+    }
 
 def now_local() -> datetime:
     return datetime.now(LOCAL_TIMEZONE)
-
 
 def local_day_bounds(day: datetime) -> tuple[datetime, datetime]:
     start = datetime.combine(day.date(), time.min, tzinfo=LOCAL_TIMEZONE)
     end = datetime.combine(day.date(), time.max, tzinfo=LOCAL_TIMEZONE)
     return start.astimezone(UTC), end.astimezone(UTC)
-
 
 def resolve_health_date_range(message: str) -> tuple[str, datetime, datetime]:
     normalized = message.lower()
@@ -36,146 +187,24 @@ def resolve_health_date_range(message: str) -> tuple[str, datetime, datetime]:
         start, end = local_day_bounds(current - timedelta(days=1))
         return "yesterday", start, end
     if "week" in normalized:
-        start_local = datetime.combine(
-            (current - timedelta(days=current.weekday())).date(),
-            time.min, tzinfo=LOCAL_TIMEZONE,
-        )
+        start_local = datetime.combine((current - timedelta(days=current.weekday())).date(), time.min, tzinfo=LOCAL_TIMEZONE)
         return "this week", start_local.astimezone(UTC), current.astimezone(UTC)
-    if "month" in normalized:
-        start = datetime(current.year, current.month, 1, tzinfo=LOCAL_TIMEZONE)
-        return "this month", start.astimezone(UTC), current.astimezone(UTC)
     start, end = local_day_bounds(current)
     return "today", start, end
 
-
 def normalize_workout_type(raw: str | None) -> str:
-    if not raw:
-        return "other"
-    normalized = raw.lower().strip()
+    if not raw: return "other"
     for wtype in WORKOUT_TYPES:
-        if wtype in normalized:
-            return wtype
+        if wtype in raw.lower(): return wtype
     return "other"
 
-
-def extract_water_glasses(text: str) -> float | None:
-    """Regex fallback — extract water amount in glasses."""
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:glass(?:es)?|cup(?:s)?)", text, re.IGNORECASE)
-    if m:
-        return float(m.group(1))
-    m = re.search(r"(\d+(?:\.\d+)?)\s*(?:l|liter(?:s)?|litre(?:s)?)\b", text, re.IGNORECASE)
-    if m:
-        return float(m.group(1)) * 4  # 1 litre ≈ 4 glasses
-    m = re.search(r"(\d+(?:\.\d+)?)\s*ml\b", text, re.IGNORECASE)
-    if m:
-        return float(m.group(1)) / 250  # 250 ml = 1 glass
-    return None
-
-
 def _parse_json(text: str) -> dict:
-    match = re.search(r"\{.*\}", text, flags=re.DOTALL)
-    if not match:
-        return {}
+    """Robust JSON extraction using first and last brace boundaries."""
     try:
-        payload = json.loads(match.group(0))
-        return payload if isinstance(payload, dict) else {}
-    except json.JSONDecodeError:
+        start = text.find('{')
+        end = text.rfind('}')
+        if start == -1 or end == -1:
+            return {}
+        return json.loads(text[start:end+1])
+    except:
         return {}
-
-
-def normalize_health_command(payload: dict) -> dict:
-    operation = payload.get("operation")
-    if operation not in HEALTH_OPERATIONS:
-        operation = "daily_summary"
-
-    nutrition_data = payload.get("nutrition")
-    nutrition = {}
-    if isinstance(nutrition_data, dict):
-        if "items" in nutrition_data and isinstance(nutrition_data["items"], list):
-            total_calories = sum(item.get("calories", 0) for item in nutrition_data["items"] if isinstance(item.get("calories"), (int, float)))
-            total_protein = sum(item.get("protein", 0) for item in nutrition_data["items"] if isinstance(item.get("protein"), (int, float)))
-            meal_name = ", ".join(item.get("name", "") for item in nutrition_data["items"] if item.get("name"))
-            nutrition = {"meal": meal_name, "calories": total_calories, "protein": total_protein}
-        else:
-            nutrition = nutrition_data
-
-    return {
-        "operation": operation,
-        "water": payload.get("water") if isinstance(payload.get("water"), dict) else {},
-        "workout": payload.get("workout") if isinstance(payload.get("workout"), dict) else {},
-        "nutrition": nutrition,
-        "goal": payload.get("goal") if isinstance(payload.get("goal"), dict) else {},
-    }
-
-
-async def parse_health_command(message: str, user_memory: str = "") -> dict:
-    current_date = now_local().date().isoformat()
-    prompt = f"""You are Jarvis's health parser. Parse the user's message into strict JSON.
-Today is {current_date} (Asia/Kolkata).
-User memory (context): {user_memory if user_memory else "None"}
-
-Allowed operations: {", ".join(sorted(HEALTH_OPERATIONS))}
-
-JSON shape:
-{{
-  "operation": "log_nutrition",
-  "water": {{"glasses": 3, "liters": 0.75}},
-  "workout": {{"type": "gym", "duration_minutes": 45, "calories_burned": 300, "notes": "leg day"}},
-  "nutrition": {{"items": [{{"name": "2 bananas", "calories": 180, "protein": 2}}, {{"name": "3 tbsp peanut butter", "calories": 285, "protein": 10.5}}]}},
-  "goal": {{"water_glasses": 8, "calories": 2000, "protein": 150}}
-}}
-
-CRITICAL RULE — Estimating nutrition from food names:
-If the user mentions a food item WITHOUT exact numbers, ESTIMATE typical values:
-- 1 pizza (whole, medium) ≈ 800 cal / 35g protein / 90g carbs / 28g fat
-- 1 slice of pizza ≈ 285 cal / 12g protein
-- 1 burger ≈ 550 cal / 30g protein
-- 1 plate biryani ≈ 500 cal / 25g protein
-- 1 roti/chapati ≈ 80 cal / 3g protein
-- 1 bowl dal ≈ 150 cal / 9g protein
-- 1 bowl paneer curry ≈ 300 cal / 18g protein
-- 1 bowl pasta ≈ 400 cal / 15g protein
-- 1 egg ≈ 70 cal / 6g protein
-- 1 banana ≈ 90 cal / 1g protein
-- 1 cup oats ≈ 300 cal / 10g protein
-- 1 glass milk ≈ 120 cal / 6g protein
-- 1 tbsp peanut butter ≈ 95 cal / 3.5g protein
-- Almonds/walnuts (handful) ≈ 160 cal / 6g protein
-- Chicken (100g) ≈ 165 cal / 31g protein
-NEVER return null for calories or protein when a food name is present. Always estimate.
-If the user mentions MULTIPLE foods, create a separate object for EACH food item inside the "items" array. DO NOT sum them up yourself.
-
-Operation routing:
-- drank/water/glass → log_water
-- gym/run/workout/exercise/yoga/cardio → log_workout
-- eat/ate/eating/had/having + any food name → log_nutrition
-- explicit calories or protein numbers → log_nutrition
-- how much water → query_water
-- workout history/stats → query_workouts
-- calories this week/today → query_nutrition
-- set water goal → set_water_goal
-- set calorie/protein goal → set_nutrition_goal
-Return ONLY JSON. No markdown. No explanation.
-
-SPECIAL INSTRUCTION FOR VISION:
-CRITICAL: If the message contains a '[IMAGE ANALYSIS: ...]' tag that describes food, you MUST use the operation 'log_nutrition'. Extract the food name and any estimated calories/protein from the analysis into the "nutrition" object. Ignore if the user asks "how many calories", ALWAYS log it if an image analysis is present!
-
-User message: {message}
-"""
-    try:
-        response_text = await generate_response(
-            prompt,
-            system_prompt=(
-                "You are a health data parser for Jarvis. "
-                "Return strict JSON only. "
-                "When a food is named, ALWAYS estimate calories and protein."
-            ),
-            temperature=0,
-        )
-        return normalize_health_command(_parse_json(response_text))
-    except LLMUnavailableError:
-        glasses = extract_water_glasses(message)
-        if glasses:
-            return normalize_health_command({"operation": "log_water", "water": {"glasses": glasses}})
-        return normalize_health_command({"operation": "daily_summary"})
-
