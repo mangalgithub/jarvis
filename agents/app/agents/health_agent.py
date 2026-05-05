@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from bson import ObjectId
 
 from app.core.mongodb import get_collection
+from app.core.state import conversation_state
 from app.tools.health_tools import (
     local_day_bounds,
     normalize_workout_type,
@@ -27,8 +28,12 @@ class HealthAgent:
         operation = command["operation"]
 
         # ── High-Fidelity Clarification Support ──
-        # If the parser found the input ambiguous, it will provide a 'reply_override'.
         if command.get("reply_override"):
+            # Save the original message and intent to state so we can 're-hydrate' it next turn
+            await conversation_state.set_pending_action(user_id, {
+                "original_message": message,
+                "intent": "log_nutrition"
+            })
             return {
                 "reply": command["reply_override"],
                 "actions": [{"type": "health_clarification_requested", "operation": operation}]

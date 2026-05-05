@@ -12,6 +12,7 @@ from app.agents.learning_agent import LearningAgent
 from app.agents.reminder_agent import ReminderAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.core.vision import vision_service
+from app.core.state import conversation_state
 from app.schemas.chat import ChatRequest, ChatResponse
 
 finance_agent = FinanceAgent()
@@ -182,10 +183,19 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
         print(f"DEBUG: Vision Analysis Result: {vision_analysis[:100]}...")
         request.message = f"[IMAGE ANALYSIS: {vision_analysis}]\nUser Message: {request.message}"
 
-    direct_finance_action = re.search(
-        r"\b(?:delete|update)\s+expense\s+id\s+[a-fA-F0-9]{24}\b",
-        request.message,
-    )
+    # ── Session State Re-Hydration (Multi-turn Support) ──
+    direct_finance_action = None
+    pending_action = await conversation_state.get_pending_action(request.user_id)
+    if pending_action:
+        print(f"🧠 [State Re-Hydration]: Found pending action {pending_action['intent']}")
+        request.message = f"User is clarifying a previous log. Original: {pending_action['original_message']}. Clarification: {request.message}"
+        intents, intent_source = [pending_action['intent']], "session_state"
+    else:
+        # ── Existing Intent Detection Logic ──
+        direct_finance_action = re.search(
+            r"\b(?:delete|update)\s+expense\s+id\s+[a-fA-F0-9]{24}\b",
+            request.message,
+        )
 
     if direct_finance_action or finance_agent.is_confirmation_reply(request.message):
         try:

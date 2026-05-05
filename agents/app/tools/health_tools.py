@@ -60,10 +60,18 @@ def _calculate_elite_nutrition(items: list[dict]) -> dict:
     processed_names = []
 
     for item in items:
-        raw_name = item.get("name", "").lower()
-        qty = float(item.get("qty") or 1)
-        unit = item.get("unit", "piece").lower()
-        context = item.get("context", "home").lower()
+        # 1. Null-Safe Attribute Extraction
+        raw_name = (item.get("name") or "").lower()
+        unit = (item.get("unit") or "piece").lower()
+        context = (item.get("context") or "home").lower()
+        
+        # 2. Safe Quantity Conversion
+        raw_qty = item.get("qty")
+        try:
+            qty = float(raw_qty) if raw_qty is not None else 1.0
+        except (ValueError, TypeError):
+            qty = 1.0
+            item["vague"] = True
 
         # 1. Priority-Based Entity Matching (Match long strings first)
         db_match = None
@@ -119,19 +127,30 @@ async def parse_health_command(message: str, user_memory: str = "") -> dict:
     prompt = f"""You are Jarvis's elite health parser. Today: {current_date}
 Extract entities into strict JSON.
 
+Allowed Operations:
+- log_nutrition: Use this for 'ate', 'had', 'eating', 'logged', or any mention of food/meals.
+- log_water: Use for 'drank', 'water', 'glasses'.
+- log_workout: Use for 'gym', 'run', 'workout'.
+- query_nutrition/query_water/query_workouts: Use for 'how much', 'what did I eat', 'history'.
+- daily_summary: Default if no action is found.
+
+JSON Format:
 {{
   "operation": "log_nutrition",
   "nutrition": {{
     "items": [
-      {{ "name": "chicken curry", "qty": 1, "unit": "bowl", "context": "restaurant" }}
+      {{ "name": "chicken curry", "qty": 1, "unit": "bowl", "context": "restaurant", "vague": false }},
+      {{ "name": "chicken", "qty": 1, "unit": "piece", "context": "home", "vague": true }}
     ]
   }}
 }}
 
 RULES:
-1. ONLY extract name, qty, unit, context. No calculations.
-2. If multiple foods, list them separately.
-3. If image analysis is present ('[IMAGE ANALYSIS: ...]'), prioritize its entities.
+1. If the user mentions food (e.g., 'ate', 'had'), ALWAYS use "operation": "log_nutrition".
+2. ONLY extract name, qty, unit, context.
+3. **STRICT Vague Rule**: If the user uses vague words (e.g., 'some', 'a bit') instead of a number, set "qty": null and "vague": true.
+4. **Clarification Override**: If the message contains "Clarification:", the ambiguity is now **RESOLVED**. Use the new info in the clarification to fill in any missing/null quantities and **SET "vague": false**.
+5. If image analysis is present ('[IMAGE ANALYSIS: ...]'), extract those entities.
 
 User message: {message}
 """
@@ -150,7 +169,12 @@ User message: {message}
             items = payload.get("nutrition", {}).get("items", [])
             analysis = _calculate_elite_nutrition(items)
             
-            # Use real clarification if present, otherwise fallback
+            # Check for vagueness in items
+            any_vague = any(item.get("vague") is True for item in items)
+            if any_vague:
+                analysis["confidence"] *= 0.5
+                analysis["clarification"] = "I caught that you had some food, but the quantity was a bit vague."
+
             if analysis["confidence"] < 0.6 or analysis["clarification"]:
                 reason = analysis["clarification"] if analysis["clarification"] else "I'm a bit unsure about those portions."
                 payload["reply_override"] = f"🤔 {reason} Please clarify so I can log it accurately."
