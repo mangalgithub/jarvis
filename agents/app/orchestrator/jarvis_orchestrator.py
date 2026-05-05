@@ -1,6 +1,7 @@
 import asyncio
 import json
 import re
+from datetime import datetime
 
 from app.agents.finance_agent import FinanceAgent
 from app.agents.health_agent import HealthAgent
@@ -259,11 +260,14 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     if user_memory:
         print(f"🧠 [RAG Context]: {user_memory}")
 
+    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     context = {
         "user_id": request.user_id,
         "message": request.message,
         "intents": intents,
         "user_memory": user_memory,
+        "current_time": current_time,
     }
 
     agent_map = {
@@ -285,6 +289,7 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
         # Generate a smart response using the context retrieved via RAG
         system_prompt = (
             "You are Jarvis, a helpful and sophisticated personal AI assistant. "
+            f"Current Time: {current_time}. "
             "Use the provided user context to personalize your response. "
             "If the context contains relevant preferences or facts, apply them. "
             "Keep the response concise, premium, and helpful."
