@@ -8,6 +8,7 @@ const navItems = [
   { name: "Finance", path: "/finance", icon: "💰" },
   { name: "Health", path: "/health", icon: "🏥" },
   { name: "News", path: "/news", icon: "📰" },
+  { name: "Markets", path: "/markets", icon: "📈" },
   { name: "Profile", path: "/profile", icon: "👤" },
 ];
 
