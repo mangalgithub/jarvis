@@ -16,3 +16,4 @@ numpy
 torch
 google-genai
 pillow
+redis[hiredis]

@@ -23,6 +23,7 @@ class Settings(BaseModel):
     youtube_api_key: str | None = getenv("YOUTUBE_API_KEY")
     secret_key: str = getenv("SECRET_KEY", "super-secret-key-for-jarvis-os-32")
     access_token_expire_minutes: int = int(getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")) # 7 days
+    redis_url: str | None = getenv("REDIS_URL")
 
 
 settings = Settings()
