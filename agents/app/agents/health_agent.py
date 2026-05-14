@@ -32,7 +32,7 @@ class HealthAgent:
             # Save the original message and intent to state so we can 're-hydrate' it next turn
             await conversation_state.set_pending_action(user_id, {
                 "original_message": message,
-                "intent": "log_nutrition"
+                "intent": "health_tracking"
             })
             return {
                 "reply": command["reply_override"],

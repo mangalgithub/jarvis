@@ -106,9 +106,13 @@ async def _cache_nutrition(food_name: str, data: dict) -> None:
 
 def _is_prediction_reliable(prediction: dict) -> bool:
     """Validate LLM nutrition prediction with sanity guardrails."""
-    cal = prediction.get("cal_per_serving", 0)
-    pro = prediction.get("pro_per_serving", 0)
-    serving_g = prediction.get("serving_weight_g", 0)
+    try:
+        cal = float(prediction.get("cal_per_serving") or 0)
+        pro = float(prediction.get("pro_per_serving") or 0)
+        serving_g = float(prediction.get("serving_weight_g") or 0)
+    except (ValueError, TypeError):
+        _log.warning("Guardrail FAIL: non-numeric values in prediction")
+        return False
 
     # Basic range checks
     if cal <= 0 or cal > 5000:
@@ -208,6 +212,7 @@ Guidelines:
             print(f"✅ [CACHED] {normalized_name} → Redis (30d TTL) + MongoDB")
         else:
             print(f"⚠️ [NOT CACHED] {normalized_name} → failed reliability check")
+            return {"calories": 0, "protein": 0, "meal": normalized_name, "source": "error"}
 
         # 5. Apply quantity multipliers
         result = _apply_quantity(prediction, qty, unit, context)
@@ -221,11 +226,11 @@ Guidelines:
 
 def _apply_quantity(base_data: dict, qty: float, unit: str, context: str) -> dict:
     """Multiply per-serving base data by quantity, unit, and context."""
-    cal_per = base_data.get("cal_per_serving", 0)
-    pro_per = base_data.get("pro_per_serving", 0)
-    fat_per = base_data.get("fat_per_serving", 0)
-    carbs_per = base_data.get("carbs_per_serving", 0)
-    serving_g = base_data.get("serving_weight_g", 100)
+    cal_per = float(base_data.get("cal_per_serving") or 0)
+    pro_per = float(base_data.get("pro_per_serving") or 0)
+    fat_per = float(base_data.get("fat_per_serving") or 0)
+    carbs_per = float(base_data.get("carbs_per_serving") or 0)
+    serving_g = float(base_data.get("serving_weight_g") or 100)
 
     # Unit-based multiplier
     if unit == "gram":
@@ -352,7 +357,7 @@ RULES:
 1. If the user mentions food (e.g., 'ate', 'had'), ALWAYS use "operation": "log_nutrition".
 2. ONLY extract name, qty, unit, context.
 3. **STRICT Vague Rule**: If the user uses vague words (e.g., 'some', 'a bit') instead of a number, set "qty": null and "vague": true.
-4. **Clarification Override**: If the message contains "Clarification:", the ambiguity is now **RESOLVED**. Use the new info in the clarification to fill in any missing/null quantities and **SET "vague": false**.
+4. **Clarification Override**: If the message starts with "Clarification:", extract ONLY the food items explicitly mentioned in the clarification text. Do NOT add any items that are not in the text. Set "vague": false for all items.
 5. If image analysis is present ('[IMAGE ANALYSIS: ...]'), extract those entities.
 6. **Quantity Scoping**: A number ONLY applies to the food item it directly precedes. Example: "ate 2 rotis and dal" → roti qty=2, dal qty=1 (NOT 2). Do NOT propagate quantities across items.
 

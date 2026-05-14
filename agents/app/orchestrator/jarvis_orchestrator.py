@@ -188,7 +188,7 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     pending_action = await conversation_state.get_pending_action(request.user_id)
     if pending_action:
         print(f"🧠 [State Re-Hydration]: Found pending action {pending_action['intent']}")
-        request.message = f"User is clarifying a previous log. Original: {pending_action['original_message']}. Clarification: {request.message}"
+        request.message = f"Clarification: {request.message}"
         intents, intent_source = [pending_action['intent']], "session_state"
     else:
         # ── Existing Intent Detection Logic ──
@@ -232,39 +232,41 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             )
 
     # ── Pre-LLM keyword shortcuts (faster + more reliable for simple messages) ──
-    msg_lower = request.message.lower()
-    is_finance = any(kw in msg_lower for kw in _FINANCE_KEYWORDS)
+    # SKIP if we already have intents from session state (multi-turn clarification)
+    if not pending_action:
+        msg_lower = request.message.lower()
+        is_finance = any(kw in msg_lower for kw in _FINANCE_KEYWORDS)
 
-    # Memory gets absolute priority if it matches a clear memory pattern
-    if _MEMORY_RE.search(request.message):
-        intents, intent_source = ["memory_management"], "regex_shortcut"
-    elif _REMINDER_RE.search(request.message) and not is_finance:
-        intents, intent_source = ["reminder_management"], "regex_shortcut"
-    elif _STOCK_RE.search(request.message) and not is_finance:
-        intents, intent_source = ["stock_analysis"], "regex_shortcut"
-    elif _LEARNING_RE.search(request.message) and not is_finance:
-        intents, intent_source = ["learning_help"], "regex_shortcut"
-    elif _HEALTH_RE.search(request.message) and not is_finance:
-        intents, intent_source = ["health_tracking"], "regex_shortcut"
-    elif _NEWS_RE.search(request.message) and not is_finance:
-        intents, intent_source = ["news_summary"], "regex_shortcut"
-    else:
-        try:
-            intents, intent_source = await detect_intents(request.message)
-        except LLMUnavailableError as error:
-            return ChatResponse(
-                reply=(
-                    "I could not detect the intent because the LLM is unavailable. "
-                    "Please check your Groq API key and try again."
-                ),
-                actions=[
-                    {
-                        "type": "intent_detection_failed",
-                        "source": "llm",
-                        "error": str(error),
-                    }
-                ],
-            )
+        # Memory gets absolute priority if it matches a clear memory pattern
+        if _MEMORY_RE.search(request.message):
+            intents, intent_source = ["memory_management"], "regex_shortcut"
+        elif _REMINDER_RE.search(request.message) and not is_finance:
+            intents, intent_source = ["reminder_management"], "regex_shortcut"
+        elif _STOCK_RE.search(request.message) and not is_finance:
+            intents, intent_source = ["stock_analysis"], "regex_shortcut"
+        elif _LEARNING_RE.search(request.message) and not is_finance:
+            intents, intent_source = ["learning_help"], "regex_shortcut"
+        elif _HEALTH_RE.search(request.message) and not is_finance:
+            intents, intent_source = ["health_tracking"], "regex_shortcut"
+        elif _NEWS_RE.search(request.message) and not is_finance:
+            intents, intent_source = ["news_summary"], "regex_shortcut"
+        else:
+            try:
+                intents, intent_source = await detect_intents(request.message)
+            except LLMUnavailableError as error:
+                return ChatResponse(
+                    reply=(
+                        "I could not detect the intent because the LLM is unavailable. "
+                        "Please check your Groq API key and try again."
+                    ),
+                    actions=[
+                        {
+                            "type": "intent_detection_failed",
+                            "source": "llm",
+                            "error": str(error),
+                        }
+                    ],
+                )
 
     user_memory = await memory_agent.get_context_string(request.user_id, request.message)
     if user_memory:
