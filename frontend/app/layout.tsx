@@ -1,6 +1,7 @@
 "use client";
 
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/react";
 import { DashboardProvider } from "@/context/DashboardContext";
 import Sidebar from "@/components/nav/Sidebar";
 import MobileNav from "@/components/nav/MobileNav";
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </main>
           {!isAuthPage && <MobileNav />}
         </DashboardProvider>
+        <Analytics />
       </body>
     </html>
   );
