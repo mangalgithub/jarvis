@@ -270,7 +270,9 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     if user_memory:
         print(f"🧠 [RAG Context]: {user_memory}")
 
-    current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    from datetime import timezone, timedelta
+    IST = timezone(timedelta(hours=5, minutes=30))
+    current_time = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S %Z")
     
     context = {
         "user_id": request.user_id,
