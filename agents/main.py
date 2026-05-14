@@ -7,12 +7,19 @@ from app.api.routes.chat import router as chat_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.websockets import router as websockets_router
 from app.core.scheduler import start_scheduler
+from app.core.mongodb import get_collection
 
 from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_scheduler()
+    
+    # Add MongoDB indexes for query performance
+    await get_collection("nutrition_logs").create_index([("user_id", 1), ("logged_at", -1)])
+    await get_collection("water_logs").create_index([("user_id", 1), ("logged_at", -1)])
+    await get_collection("expenses").create_index([("user_id", 1), ("created_at", -1)])
+    
     yield
 
 app = FastAPI(title="Jarvis Agent Service", lifespan=lifespan)
