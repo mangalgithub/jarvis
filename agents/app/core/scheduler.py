@@ -17,12 +17,12 @@ async def check_reminders():
     """Polls MongoDB for pending reminders that are due and broadcasts them via WebSocket."""
     try:
         collection = get_collection("reminders")
-        now_str = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
 
         # Find pending reminders where execute_at <= now
         cursor = collection.find({
             "status": "pending",
-            "execute_at": {"$lte": now_str}
+            "execute_at": {"$lte": now}
         })
 
         reminders_to_trigger = []
