@@ -134,7 +134,9 @@ Allowed Operations:
 - query_nutrition/query_water/query_workouts: Use for 'how much', 'what did I eat', 'history'.
 - daily_summary: Default if no action is found.
 
-JSON Format:
+JSON Format (choose the one matching the operation):
+
+For log_nutrition:
 {{
   "operation": "log_nutrition",
   "nutrition": {{
@@ -142,6 +144,26 @@ JSON Format:
       {{ "name": "chicken curry", "qty": 1, "unit": "bowl", "context": "restaurant", "vague": false }},
       {{ "name": "chicken", "qty": 1, "unit": "piece", "context": "home", "vague": true }}
     ]
+  }}
+}}
+
+For log_workout:
+{{
+  "operation": "log_workout",
+  "workout": {{
+    "type": "gym",
+    "duration_minutes": 60,
+    "calories_burned": null,
+    "notes": ""
+  }}
+}}
+
+For log_water:
+{{
+  "operation": "log_water",
+  "water": {{
+    "glasses": 3,
+    "liters": null
   }}
 }}
 
