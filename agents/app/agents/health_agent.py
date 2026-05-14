@@ -327,10 +327,7 @@ class HealthAgent:
             day = now - timedelta(days=i)
             start, end = local_day_bounds(day)
             
-            cal = await self._sum_today(user_id, "nutrition_logs", "calories") # Note: This needs bounds
-            # Wait, _sum_today uses now_local() fixed bounds. I need a bounded sum.
-            
-            # Let's write a better trend helper
+            # Fetch bounded data for the specific day
             query = self._date_query(user_id, start, end)
             
             n_docs = await get_collection("nutrition_logs").find(query).to_list(length=100)

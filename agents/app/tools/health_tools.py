@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -142,6 +143,18 @@ def _is_prediction_reliable(prediction: dict) -> bool:
     return True
 
 
+_gemini_client = None
+
+def _get_gemini_client():
+    """Lazy-load and return a singleton Gemini client."""
+    global _gemini_client
+    if _gemini_client is None:
+        from google import genai
+        from app.core.config import settings as cfg
+        if cfg.google_api_key:
+            _gemini_client = genai.Client(api_key=cfg.google_api_key)
+    return _gemini_client
+
 async def _predict_single_item_nutrition(food_name: str, qty: float, unit: str, context: str) -> dict:
     """
     Predict nutrition for a single food item.
@@ -158,10 +171,9 @@ async def _predict_single_item_nutrition(food_name: str, qty: float, unit: str, 
 
     # 2. Cache miss → ask Gemini
     print(f"🔍 [CACHE MISS] {normalized_name} → querying Gemini...")
-    from google import genai
-    from app.core.config import settings as cfg
+    client = _get_gemini_client()
 
-    if not cfg.google_api_key:
+    if not client:
         _log.error("GOOGLE_API_KEY not set, cannot predict nutrition")
         return {"calories": 0, "protein": 0, "meal": normalized_name, "source": "error"}
 
@@ -189,7 +201,6 @@ Guidelines:
 """
 
     try:
-        client = genai.Client(api_key=cfg.google_api_key)
         response = client.models.generate_content(
             model="gemini-2.5-flash",
             contents=prompt,
@@ -265,6 +276,9 @@ async def _predict_nutrition_llm(items: list[dict]) -> dict:
     confidence = 1.0
     clarifications = []
 
+    tasks = []
+    item_params = []
+
     for item in items:
         raw_name = (item.get("name") or "").strip()
         if not raw_name:
@@ -281,18 +295,22 @@ async def _predict_nutrition_llm(items: list[dict]) -> dict:
             qty = 1.0
             item["vague"] = True
 
-        result = await _predict_single_item_nutrition(raw_name, qty, unit, context)
+        tasks.append(_predict_single_item_nutrition(raw_name, qty, unit, context))
+        item_params.append((raw_name, qty))
 
-        if result.get("source") == "error":
-            confidence *= 0.5
-            clarifications.append(f"Could not estimate nutrition for '{raw_name}'.")
-            continue
+    if tasks:
+        results = await asyncio.gather(*tasks)
+        for (raw_name, qty), result in zip(item_params, results):
+            if result.get("source") == "error":
+                confidence *= 0.5
+                clarifications.append(f"Could not estimate nutrition for '{raw_name}'.")
+                continue
 
-        total_cal += result.get("calories", 0)
-        total_pro += result.get("protein", 0)
-        total_fat += result.get("fat", 0)
-        total_carbs += result.get("carbs", 0)
-        processed_names.append(f"{qty:.0f} {raw_name}")
+            total_cal += result.get("calories", 0)
+            total_pro += result.get("protein", 0)
+            total_fat += result.get("fat", 0)
+            total_carbs += result.get("carbs", 0)
+            processed_names.append(f"{qty:.0f} {raw_name}")
 
     return {
         "meal": ", ".join(processed_names) if processed_names else "meal",
