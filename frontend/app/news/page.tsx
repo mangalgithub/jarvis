@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard } from "@/components/dashboard/PanelCard";
 
+import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
+
 const NEWS_TABS = [
   { key: "india", label: "🇮🇳 India" },
   { key: "world", label: "🌍 World" },
@@ -16,11 +18,7 @@ export default function NewsPage() {
   const news = dashboard?.news;
 
   if (!news) {
-    return (
-      <div className="p-8 flex items-center justify-center h-screen">
-        <p className="text-slate-500 animate-pulse">Loading news briefings...</p>
-      </div>
-    );
+    return <DashboardLoader label="Loading news briefings..." />;
   }
 
   const categoryData = news[activeTab];

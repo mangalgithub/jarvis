@@ -2,17 +2,14 @@
 
 import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
+import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
 
 export default function ProfilePage() {
   const { dashboard, sendMessage } = useDashboard();
   const memory = dashboard?.memory;
 
   if (!memory) {
-    return (
-      <div className="p-8 flex items-center justify-center h-screen">
-        <p className="text-slate-500 animate-pulse">Loading profile data...</p>
-      </div>
-    );
+    return <DashboardLoader label="Loading profile data..." />;
   }
 
   const emojiMap: Record<string, string> = {

@@ -4,6 +4,7 @@ import { useDashboard } from "@/context/DashboardContext";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
+import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
 import { money, shortDate } from "@/lib/utils";
 import { Card } from "@heroui/react";
 
@@ -12,11 +13,7 @@ export default function FinancePage() {
   const finance = dashboard?.finance;
 
   if (!finance) {
-    return (
-      <div className="p-8 flex items-center justify-center h-screen">
-        <p className="text-slate-500 animate-pulse">Loading finance data...</p>
-      </div>
-    );
+    return <DashboardLoader label="Loading finance data..." />;
   }
 
   const maxCategoryTotal = Math.max(

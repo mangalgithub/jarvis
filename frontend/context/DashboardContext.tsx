@@ -163,9 +163,9 @@ interface DashboardContextType {
   acknowledgeReminder: (reminder: Reminder) => void;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 
-  (typeof window !== "undefined" && window.location.hostname !== "localhost" 
-    ? window.location.origin 
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ||
+  (typeof window !== "undefined" && window.location.hostname !== "localhost"
+    ? window.location.origin
     : "http://localhost:3000");
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
@@ -196,7 +196,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     const savedTheme = localStorage.getItem("jarvis_theme");
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     const initialDark = savedTheme === "dark" || (!savedTheme && prefersDark);
-    
+
     setIsDarkMode(initialDark);
     if (initialDark) {
       document.documentElement.classList.add("dark");

@@ -4,17 +4,14 @@ import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { timeAgo } from "@/lib/utils";
+import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
 
 export default function HealthPage() {
   const { dashboard, sendMessage } = useDashboard();
   const health = dashboard?.health;
 
   if (!health) {
-    return (
-      <div className="p-8 flex items-center justify-center h-screen">
-        <p className="text-slate-500 animate-pulse">Loading health data...</p>
-      </div>
-    );
+    return <DashboardLoader label="Loading health data..." />;
   }
 
   return (

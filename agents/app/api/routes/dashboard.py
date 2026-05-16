@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends
@@ -150,6 +151,44 @@ async def finance_trends(user_id: str):
     return trends
 
 
+# ── Safe wrappers for concurrent dashboard fetches ──────────────────────
+
+async def _safe_news():
+    try:
+        return await news_agent.get_dashboard_news(["india", "world", "ai"])
+    except Exception as exc:
+        logger.error("[dashboard] news failed: %s", exc)
+        return None
+
+async def _safe_health(user_id: str):
+    try:
+        return await health_agent.get_dashboard_health(user_id)
+    except Exception as exc:
+        logger.error("[dashboard] health failed: %s", exc, exc_info=True)
+        return None
+
+async def _safe_memory(user_id: str):
+    try:
+        return await memory_agent.get_dashboard_memory(user_id)
+    except Exception as exc:
+        logger.error("[dashboard] memory failed: %s", exc, exc_info=True)
+        return None
+
+async def _safe_stocks():
+    try:
+        return await stock_agent.get_dashboard_stocks()
+    except Exception as exc:
+        logger.error("[dashboard] stocks failed: %s", exc, exc_info=True)
+        return None
+
+async def _safe_reminders(user_id: str):
+    try:
+        return await get_active_reminders(user_id)
+    except Exception as exc:
+        logger.error("[dashboard] reminders failed: %s", exc, exc_info=True)
+        return []
+
+
 @router.get("/dashboard")
 async def dashboard(
     date_range: str = "this month",
@@ -163,42 +202,42 @@ async def dashboard(
     _, today_start, today_end = resolve_date_range({"label": "today"}, "today")
     month_start, month_end = month_bounds(now_local())
 
-    today_expense_total = await expense_total(user_id, today_start, today_end)
-    month_expense_total = await expense_total(user_id, month_start, month_end)
-    filtered_expense_total = await expense_total(user_id, filter_start, filter_end, category)
-    month_income_total = await income_total(user_id, month_start, month_end)
-    recurring = await recurring_expenses(user_id)
-
-    try:
-        news_data = await news_agent.get_dashboard_news(["india", "world", "ai"])
-    except Exception:
-        news_data = None
-
-    try:
-        health_data = await health_agent.get_dashboard_health(user_id)
-    except Exception as exc:
-        logger.error("[dashboard] get_dashboard_health failed: %s", exc, exc_info=True)
-        health_data = None
-    try:
-        memory_data = await memory_agent.get_dashboard_memory(user_id)
-    except Exception as exc:
-        logger.error("[dashboard] get_dashboard_memory failed: %s", exc, exc_info=True)
-        memory_data = None
-
-    try:
-        stock_data = await stock_agent.get_dashboard_stocks()
-    except Exception as exc:
-        logger.error("[dashboard] get_dashboard_stocks failed: %s", exc, exc_info=True)
-        stock_data = None
-
-    try:
-        reminders_data = await get_active_reminders(user_id)
-    except Exception as exc:
-        logger.error("[dashboard] get_active_reminders failed: %s", exc, exc_info=True)
-        reminders_data = []
-
-    f_trends = await finance_trends(user_id)
-    h_trends = await health_agent.get_health_trends(user_id) if health_agent else []
+    # ── Run ALL independent fetches concurrently ──
+    (
+        today_expense_total,
+        month_expense_total,
+        filtered_expense_total,
+        month_income_total,
+        recurring,
+        cat_breakdown,
+        budgets,
+        recent,
+        savings,
+        f_trends,
+        h_trends,
+        news_data,
+        health_data,
+        memory_data,
+        stock_data,
+        reminders_data,
+    ) = await asyncio.gather(
+        expense_total(user_id, today_start, today_end),
+        expense_total(user_id, month_start, month_end),
+        expense_total(user_id, filter_start, filter_end, category),
+        income_total(user_id, month_start, month_end),
+        recurring_expenses(user_id),
+        category_breakdown(user_id, filter_start, filter_end, category),
+        budget_status(user_id, month_start, month_end),
+        recent_expenses(user_id, filter_start, filter_end, category),
+        savings_goals(user_id),
+        finance_trends(user_id),
+        health_agent.get_health_trends(user_id),
+        _safe_news(),
+        _safe_health(user_id),
+        _safe_memory(user_id),
+        _safe_stocks(),
+        _safe_reminders(user_id),
+    )
 
     return {
         "finance": {
@@ -214,10 +253,10 @@ async def dashboard(
                 "monthNet": month_income_total - month_expense_total,
                 "recurringMonthly": recurring["total"],
             },
-            "categoryBreakdown": await category_breakdown(user_id, filter_start, filter_end, category),
-            "budgets": await budget_status(user_id, month_start, month_end),
-            "recentExpenses": await recent_expenses(user_id, filter_start, filter_end, category),
-            "savingsGoals": await savings_goals(user_id),
+            "categoryBreakdown": cat_breakdown,
+            "budgets": budgets,
+            "recentExpenses": recent,
+            "savingsGoals": savings,
             "recurringExpenses": recurring["items"],
             "trends": f_trends,
         },

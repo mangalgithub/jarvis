@@ -2,17 +2,14 @@
 
 import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
+import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
 
 export default function MarketsPage() {
   const { dashboard, sendMessage } = useDashboard();
   const stocks = dashboard?.stocks;
 
   if (!stocks) {
-    return (
-      <div className="p-8 flex items-center justify-center h-screen">
-        <p className="text-slate-500 animate-pulse">Loading market data...</p>
-      </div>
-    );
+    return <DashboardLoader label="Loading market data..." />;
   }
 
   return (
