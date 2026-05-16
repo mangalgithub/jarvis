@@ -149,7 +149,7 @@ class FinanceAgent:
             {"label": "today"},
             "today",
         )
-        month_start, _ = month_bounds(datetime.now().astimezone())
+        month_start, _ = month_bounds(now_local())
         today_total = await self._expense_total(user_id, today_start, today_end)
         month_total = await self._expense_total(user_id, month_start, datetime.now(UTC))
         logged_total = sum(document["amount"] for document in documents)

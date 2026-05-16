@@ -34,11 +34,15 @@ class ConnectionManager:
 
     async def broadcast_to_user(self, user_id: str, message: dict):
         if user_id in self.active_connections:
+            stale = []
             for connection in self.active_connections[user_id]:
                 try:
                     await connection.send_text(json.dumps(message))
                 except Exception as exc:
                     logger.error("[websockets] Failed to send message to %s: %s", user_id, exc)
+                    stale.append(connection)
+            for s in stale:
+                self.disconnect(s, user_id)
 
 
 manager = ConnectionManager()
