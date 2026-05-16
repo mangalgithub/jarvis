@@ -16,8 +16,8 @@ class VisionService:
             return "ERROR: GOOGLE_API_KEY is missing."
 
         try:
-            # Detect MIME type and extract pure base64
-            mime_match = re.match(r"data:(image/[a-zA-Z]+);base64,", base64_image)
+            # Match MIME types like image/jpeg, image/png, image/webp, image/x-icon, etc.
+            mime_match = re.match(r"data:(image/[a-zA-Z0-9\-\+]+);base64,", base64_image)
             mime_type = "image/jpeg" 
             
             if mime_match:

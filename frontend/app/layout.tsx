@@ -14,8 +14,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const isAuthPage = pathname === "/login" || pathname === "/register";
 
   return (
-    <html lang="en">
-      <body className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-white transition-colors duration-300">
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning className="min-h-screen bg-slate-50 text-slate-950 dark:bg-slate-950 dark:text-white transition-colors duration-300">
         <DashboardProvider>
           {!isAuthPage && <MobileHeader />}
           {!isAuthPage && <Sidebar />}

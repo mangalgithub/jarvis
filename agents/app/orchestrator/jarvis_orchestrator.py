@@ -62,6 +62,7 @@ _HEALTH_RE = re.compile(
 _FINANCE_KEYWORDS = {
     "expense", "spent", "spend", "budget", "income",
     "salary", "transaction", "payment", "saving",
+    "receipt", "bill"
 }
 
 _NEWS_RE = re.compile(
@@ -174,9 +175,11 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     
     if request.image:
         vision_prompt = (
-            "You are Jarvis Vision. Analyze this image and provide a concise, factual description "
-            "that can be used by other AI agents. If it's a receipt, list the total amount and items. "
-            "If it's food, identify the meal and estimate calories/protein. "
+            "You are Jarvis's visual cortex. Analyze this image and provide a highly structured, factual description for downstream NLP agents.\n"
+            "Rules:\n"
+            "1. If it's a RECEIPT/BILL: Extract the merchant name, total amount, and main items. Format strictly: 'RECEIPT: Merchant: <name>, Total: <amount>, Items: <items>'\n"
+            "2. If it's FOOD/MEAL: Identify the specific food items and estimate portion sizes. Format strictly: 'FOOD: <Meal name>, Items: <Item 1> (<portion>), <Item 2> (<portion>)'\n"
+            "3. For anything else: Provide a brief visual description.\n"
             "User Message accompanying the image: " + request.message
         )
         vision_analysis = await vision_service.analyze_image(request.image, vision_prompt)

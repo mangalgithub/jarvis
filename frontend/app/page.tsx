@@ -57,10 +57,17 @@ export default function Home() {
     }
   };
 
+  const clearImage = () => {
+    setSelectedImage(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     void sendMessage(input, selectedImage || undefined);
-    setSelectedImage(null);
+    clearImage();
     setInput("");
   };
 
@@ -163,7 +170,7 @@ export default function Home() {
                 className="h-20 w-20 object-cover rounded-xl border-2 border-cyan-500 shadow-lg" 
               />
               <button 
-                onClick={() => setSelectedImage(null)}
+                onClick={clearImage}
                 className="absolute -top-2 -right-2 bg-rose-500 text-white w-5 h-5 rounded-full text-[10px] flex items-center justify-center font-bold"
               >
                 ×

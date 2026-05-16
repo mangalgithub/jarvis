@@ -313,7 +313,7 @@ Rules:
 - For recurring bills/subscriptions, use set_recurring.
 - For savings targets, use set_savings_goal.
 - For generating a monthly report or financial analytics, use analytics.
-- If message has '[IMAGE ANALYSIS: ...]', use it to log receipts/food.
+- If the message contains '[IMAGE ANALYSIS: RECEIPT:', ALWAYS use the 'log_expense' operation to record the transaction.
 
 User message: {message}
 """
