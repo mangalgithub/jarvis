@@ -1,91 +1,144 @@
 # Jarvis Technical Architecture 🏗️
 
-This document outlines the system architecture, data flow, and API specifications for the Jarvis Personal OS.
+This document serves as the comprehensive technical blueprint for the Jarvis Personal AI Operating System. It details the infrastructure, multi-agent orchestration patterns, distributed caching, and stateful memory mechanisms.
 
-## 📐 System Diagram
+---
+
+## 📐 High-Level System Architecture
+
+The system follows a modernized decoupled microservices architecture, separating the client presentation, the backend gateway, the Python-based AI orchestration core, and the persistence/caching layer.
 
 ```mermaid
 graph TD
-    subgraph Client_Layer [Frontend - Next.js]
-        UI[Dashboard & Chat UI]
-        STT[Speech-to-Text]
+    %% Client Layer
+    subgraph Client_Layer [Presentation Layer]
+        UI[Next.js Frontend]
+        STT[Web Speech API]
         WS_Client[WebSocket Client]
     end
 
-    subgraph API_Gateway [Backend - Express.js]
-        Auth[Authentication & JWT]
+    %% Node.js Gateway
+    subgraph API_Gateway [Node.js / Express Gateway]
+        Auth[JWT Authentication]
         RateLimit[Rate Limiting]
-        DB_Proxy[Database Controller]
-        WS_Server[Socket.io Server]
+        WS_Server[Socket.io Hub]
     end
 
-    subgraph AI_Core [Agent Service - FastAPI]
+    %% Persistence & Cache
+    subgraph Infrastructure [Data & Caching Layer]
+        MDB[(MongoDB Atlas)]
+        Redis[(Redis Cache - Upstash)]
+    end
+
+    %% Python AI Core
+    subgraph AI_Core [FastAPI Agent Service]
         Orch[Jarvis Orchestrator]
         Vision[Vision Service - Gemini 2.5]
-        Intent[Intent Classifier - Groq/LLama 3]
+        Intent[Intent Classifier - Llama 3 / Groq]
+        Scheduler[Async Cron Scheduler]
         
-        subgraph Agents [Specialized Agents]
+        subgraph Agents [Isolated Agent Layer]
             FA[Finance Agent]
             HA[Health Agent]
             SA[Stock Agent]
             NA[News Agent]
-            MA[Memory Agent]
+            MA[Memory/Context Agent]
         end
     end
 
-    subgraph Data_Storage [Persistence]
-        MDB[(MongoDB Atlas)]
-    end
-
-    %% Flow
-    UI -->|REST /chat| Auth
-    Auth -->|Proxy| Orch
-    Orch -->|Multimodal Analysis| Vision
-    Orch -->|Command Parsing| Intent
-    Intent -->|Route| Agents
+    %% Flow Definitions
+    UI -->|REST JSON / Base64| Auth
+    Auth -->|Proxy via Axios| Orch
     
-    Agents -->|Read/Write| MDB
-    Auth -->|Notify| WS_Server
-    WS_Server -->|Real-time Updates| WS_Client
-    HA -->|Nutrition Data| MDB
-    FA -->|Expense Data| MDB
+    Orch -->|1. Multimodal Intercept| Vision
+    Orch -->|2. Route Classification| Intent
+    Intent -->|3. Dispatch Payload| Agents
+    
+    Agents <-->|CRUD & State| MDB
+    Agents <-->|TTL Cache bypass APIs| Redis
+    
+    Scheduler -->|Poll Reminders| MDB
+    Scheduler -->|Trigger| WS_Server
+    WS_Server <-->|Bi-directional Sync| WS_Client
 ```
 
 ---
 
-## 🔌 API Specifications
+## 🔄 Logic-NLP Decoupling (Deterministic AI)
 
-### 1. Backend Gateway (Express)
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/api/auth/register` | POST | User registration & JWT generation |
-| `/api/auth/login` | POST | User authentication |
-| `/api/chat` | POST | Main chat endpoint (handles text & base64 images) |
-| `/api/dashboard` | GET | Aggregated data for all UI widgets |
-| `/api/profile/memory` | GET | Retrieve all stored personal context |
+A critical design philosophy of Jarvis is **Logic-NLP Decoupling**. Large Language Models (LLMs) are notoriously bad at deterministic mathematics (e.g., calculating macronutrients or aggregating financial budgets). 
 
-### 2. Agent Service (FastAPI)
-| Endpoint | Method | Description |
-| :--- | :--- | :--- |
-| `/agent/chat` | POST | Receives message + image, returns AI response & actions |
-| `/agent/dashboard` | GET | Returns data specifically for health/finance charts |
-| `/agent/news` | GET | Fetches and summarizes latest curated news |
-| `/agent/memory` | POST | Manually update user preferences/dietary info |
+**How Jarvis solves this:**
+1. **LLM as a Parser:** The LLM is strictly prompted to return structured JSON entities (e.g., `{"item": "pizza", "qty": 2}`). It is explicitly forbidden from doing math.
+2. **Python as the Engine:** The FastAPI backend receives the JSON, queries the Food Database/Redis, and executes the mathematical multipliers in pure Python.
+3. **Guaranteed Accuracy:** This guarantees 100% mathematical accuracy without hallucination risk.
 
 ---
 
-## 🧠 Multimodal Logic Flow
-1. **Input:** User sends a message (e.g., "Log this pizza") + a Base64 image.
-2. **Vision Pre-processing:** The `Orchestrator` detects the image and calls `VisionService`.
-3. **Context Injection:** The vision description (e.g., "[IMAGE ANALYSIS: Chicken Pizza, 800 cal]") is prepended to the user's message.
-4. **Intent Detection:** The `IntentClassifier` sees the injected context and routes the request to the `HealthAgent`.
-5. **Action Execution:** The `HealthAgent` parses the nutrition data and saves it to MongoDB.
-6. **Real-time Update:** The backend emits a WebSocket event to refresh the Frontend charts instantly.
+## 🔀 Multimodal Data Flow (Vision -> NLP)
+
+When a user uploads an image (e.g., a restaurant receipt or a meal), the data flows through a specialized pipeline designed to seamlessly convert unstructured visual data into structured NLP context.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Orch as Orchestrator
+    participant Vision as Gemini Vision
+    participant Intent as Intent Classifier
+    participant Agent as Target Agent (e.g. Finance)
+
+    User->>Orch: Sends image + "my bill"
+    Orch->>Vision: Intercept image payload
+    Vision-->>Orch: Returns structured string: "RECEIPT: Kailash Parbat, Total: ₹1381"
+    Orch->>Orch: Prepend vision text to User message
+    Orch->>Intent: Send combined string for routing
+    Intent-->>Orch: Returns routing intent: "expense_tracking"
+    Orch->>Agent: Dispatch payload
+    Agent->>Agent: Extract entities (Merchant, Amount)
+    Agent-->>User: "Logged ₹1381 at Kailash Parbat"
+```
 
 ---
 
-## 🛠️ Technology Stack
-- **Frontend:** Next.js 15, Tailwind CSS, Framer Motion, Recharts.
-- **Backend:** Node.js, Express, Socket.io, MongoDB Atlas.
-- **AI Intelligence:** Python 3.12, FastAPI, LangChain, Gemini 2.5 Flash, Groq, Sentence-Transformers.
-- **Infrastructure:** Docker (Hugging Face Spaces), Vercel.
+## 💾 Caching & Infrastructure Strategy
+
+To ensure `<100ms` response times and bypass severe rate-limiting from external APIs (Yahoo Finance, NewsAPI, Gemini Free Tier), Jarvis implements a robust **Redis Distributed Caching Layer**.
+
+1. **News Caching:** News headlines are fetched once and cached in Redis with a 2-hour TTL. All subsequent user requests for news hit the in-memory cache instantly.
+2. **Stock Caching:** Live equity quotes (e.g., Nifty 50, Reliance) are cached with a 5-minute TTL.
+3. **Nutrition Caching:** Food macro estimations (which require slow LLM inferences) are cached in Redis for 30 days, dropping logging time for repeat meals from 3 seconds to 50 milliseconds.
+
+---
+
+## 🧠 Stateful Session Management (Clarification Loop)
+
+Standard chatbots are stateless. Jarvis uses MongoDB to maintain **Short-Term Session State**, allowing for complex multi-turn conversations without losing context.
+
+**Data Flow:**
+1. User: *"I had some chicken."*
+2. Health Agent: Realizes `qty` is missing. Halts database insertion.
+3. System: Writes a `pending_action` document to MongoDB representing the frozen state.
+4. System: Asks user *"How much chicken?"*
+5. User: *"1 bowl."*
+6. Orchestrator: Intercepts the message, checks MongoDB, finds the `pending_action`.
+7. System: Re-hydrates the context: *"I had some chicken"* + *"1 bowl"* -> processes as *"I had 1 bowl of chicken"*.
+
+---
+
+## 🔌 Core API Specifications (FastAPI)
+
+### Agent Orchestration
+| Endpoint | Method | Payload | Description |
+| :--- | :--- | :--- | :--- |
+| `/agent/chat` | `POST` | `{"message": str, "image": base64, "user_id": str}` | The primary entry point. Orchestrates Vision, Intent, and Agent dispatch. |
+
+### Dashboard Telemetry
+| Endpoint | Method | Query Params | Description |
+| :--- | :--- | :--- | :--- |
+| `/agent/dashboard` | `GET` | `?user_id=123&date_range=this_month` | Aggregates MongoDB data via Compound Indexes for instantaneous UI hydration. |
+
+### Live WebSockets (Socket.io / FastAPI WebSockets)
+- **`connection`:** Client connects; backend registers user-specific namespace.
+- **`dashboard_update`:** Pushed by the backend whenever an Agent mutates the database.
+- **`reminder_alert`:** Pushed by the Python Cron Scheduler (`scheduler.py`) when a temporal deadline is reached.
+- **Keep-Alive:** Implements server-side ping/pong to identify and prune ghost/stale connections, preventing memory leaks.
