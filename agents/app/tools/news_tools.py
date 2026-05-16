@@ -92,29 +92,16 @@ def detect_news_category(message: str) -> str:
     return "india"
 
 
-async def _get_cached_news(category: str) -> list[dict] | None:
-    """Return cached articles if they're still fresh, else None."""
-    ttl_minutes = CACHE_TTL.get(category, 30)
-    cutoff = datetime.now(UTC) - timedelta(minutes=ttl_minutes)
-    doc = await get_collection("news_cache").find_one(
-        {"category": category, "fetched_at": {"$gte": cutoff}}
-    )
-    return doc["articles"] if doc else None
+from app.core.redis import cache_get, cache_set
 
+async def _get_cached_news(category: str) -> list[dict] | None:
+    """Return cached articles from Redis."""
+    return await cache_get(f"news:category:{category}")
 
 async def _cache_news(category: str, articles: list[dict]) -> None:
-    """Upsert articles into the cache collection."""
-    await get_collection("news_cache").update_one(
-        {"category": category},
-        {
-            "$set": {
-                "articles": articles,
-                "fetched_at": datetime.now(UTC),
-                "category": category,
-            }
-        },
-        upsert=True,
-    )
+    """Save articles into the Redis cache."""
+    ttl_seconds = CACHE_TTL.get(category, 30) * 60
+    await cache_set(f"news:category:{category}", articles, ttl_seconds)
 
 
 def _normalize_article(raw: dict) -> dict:

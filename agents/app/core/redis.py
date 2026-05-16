@@ -41,3 +41,34 @@ async def get_redis() -> aioredis.Redis | None:
         _log.warning("Redis unavailable, running without cache: %s", exc)
         _redis_client = None
         return None
+
+
+async def cache_get(key: str) -> dict | list | None:
+    """Safely get and deserialize JSON from Redis."""
+    try:
+        redis = await get_redis()
+        if not redis:
+            return None
+        
+        data = await redis.get(key)
+        if data:
+            import json
+            return json.loads(data)
+    except Exception as exc:
+        _log.warning("Cache GET failed for %s: %s", key, exc)
+    return None
+
+
+async def cache_set(key: str, data: dict | list, expire_seconds: int = 300) -> bool:
+    """Safely serialize and save JSON to Redis with an expiration."""
+    try:
+        redis = await get_redis()
+        if not redis:
+            return False
+            
+        import json
+        await redis.set(key, json.dumps(data), ex=expire_seconds)
+        return True
+    except Exception as exc:
+        _log.warning("Cache SET failed for %s: %s", key, exc)
+        return False

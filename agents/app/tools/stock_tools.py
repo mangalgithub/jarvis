@@ -343,17 +343,47 @@ def _fetch_mf_returns(scheme_code: str) -> dict:
 
 # ── Async wrappers ─────────────────────────────────────────────────────────────
 
+from app.core.redis import cache_get, cache_set
+
 async def async_fetch_quote(ticker_symbol: str) -> dict:
-    return await asyncio.get_event_loop().run_in_executor(None, _fetch_quote, ticker_symbol)
+    cache_key = f"stock:quote:{ticker_symbol}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_quote, ticker_symbol)
+    if data:
+        await cache_set(cache_key, data, 300)
+    return data
 
 async def async_fetch_info(ticker_symbol: str) -> dict:
-    return await asyncio.get_event_loop().run_in_executor(None, _fetch_info, ticker_symbol)
+    cache_key = f"stock:info:{ticker_symbol}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_info, ticker_symbol)
+    if data:
+        await cache_set(cache_key, data, 300)
+    return data
 
 async def async_fetch_history(ticker_symbol: str, period: str) -> list[dict]:
-    return await asyncio.get_event_loop().run_in_executor(None, _fetch_history, ticker_symbol, period)
+    cache_key = f"stock:history:{ticker_symbol}:{period}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_history, ticker_symbol, period)
+    if data:
+        await cache_set(cache_key, data, 300)
+    return data
 
 async def async_fetch_top_movers(mover_type: str) -> list[dict]:
-    return await asyncio.get_event_loop().run_in_executor(None, _fetch_top_movers, mover_type)
+    cache_key = f"stock:movers:{mover_type}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return cached
+    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_movers, mover_type)
+    if data:
+        await cache_set(cache_key, data, 300)
+    return data
 
 async def async_search_mf(query: str) -> list[dict]:
     return await asyncio.get_event_loop().run_in_executor(None, _search_mf, query)
