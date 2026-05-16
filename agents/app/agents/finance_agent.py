@@ -3,12 +3,13 @@ from datetime import UTC, datetime, timedelta
 
 from bson import ObjectId
 
-from app.core.llm import LLMUnavailableError
+from app.core.llm import LLMUnavailableError, generate_response
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import (
     categorize_expense,
     extract_expenses,
     month_bounds,
+    now_local,
     normalize_payment_method,
     parse_date_to_utc,
     parse_finance_command,
@@ -810,6 +811,84 @@ class FinanceAgent:
         months_left = max(days_left / 30, 1)
         monthly_required = max((target - saved) / months_left, 0)
         return f"{base}, about {self._money(monthly_required)} per month needed"
+
+    async def _analytics(self, user_id: str) -> dict:
+        """Generate a personalized AI monthly financial report."""
+        now = now_local()
+        month_start, month_end = month_bounds(now)
+        
+        # 1. Fetch expenses for the month
+        cursor = get_collection("expenses").find({
+            "user_id": user_id,
+            "occurred_at": {"$gte": month_start, "$lte": month_end}
+        })
+        expenses = await cursor.to_list(length=1000)
+        
+        if not expenses:
+            return {
+                "reply": "You haven't logged any expenses this month yet! Start logging to get an AI analytics report.",
+                "actions": [{"type": "finance_analytics_empty"}]
+            }
+            
+        # 2. Aggregate data
+        total_spend = sum(e.get("amount", 0) for e in expenses)
+        cat_totals = defaultdict(float)
+        for e in expenses:
+            cat_totals[e.get("category", "Other")] += e.get("amount", 0)
+            
+        # Sort categories by spend
+        top_cats = sorted(cat_totals.items(), key=lambda x: x[1], reverse=True)[:5]
+        cat_summary = ", ".join(f"{cat}: {self._money(amt)}" for cat, amt in top_cats)
+        
+        # 3. Fetch budgets
+        budgets_cursor = get_collection("budgets").find({"user_id": user_id})
+        budgets = await budgets_cursor.to_list(length=100)
+        budget_text = "No budgets set."
+        if budgets:
+            b_list = []
+            for b in budgets:
+                cat = b.get("category")
+                limit = b.get("amount", 0)
+                spent = cat_totals.get(cat, 0)
+                b_list.append(f"{cat} Budget: {self._money(limit)}, Spent: {self._money(spent)}")
+            budget_text = "; ".join(b_list)
+            
+        # 4. Construct prompt
+        prompt = f"""
+You are Jarvis, a highly intelligent and concise personal financial advisor.
+Analyze the user's spending for the current month and write a 4-5 sentence personalized report.
+Do NOT use markdown lists or bullet points. Write a cohesive, flowing paragraph.
+Highlight their biggest spending areas, mention if they are close to or exceeding their budgets, and provide one piece of actionable financial advice or encouragement.
+
+Data for this month ({now.strftime('%B %Y')}):
+- Total Spent: {self._money(total_spend)}
+- Top Categories: {cat_summary}
+- Budget Status: {budget_text}
+
+Write the report now.
+"""
+        try:
+            report = await generate_response(
+                prompt,
+                system_prompt="You are Jarvis, a concise financial advisor.",
+                temperature=0.4
+            )
+        except Exception as e:
+            return {
+                "reply": f"I analyzed your data (Total spend: {self._money(total_spend)}), but the AI generation failed: {e}",
+                "actions": [{"type": "finance_analytics_fallback"}]
+            }
+            
+        return {
+            "reply": report.strip(),
+            "actions": [
+                {
+                    "type": "finance_analytics_generated",
+                    "total_spend": total_spend,
+                    "top_categories": [{"category": c, "amount": a} for c, a in top_cats]
+                }
+            ]
+        }
 
 
 def re_escape(value: str):
