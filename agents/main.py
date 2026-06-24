@@ -40,6 +40,40 @@ app.add_middleware(
 )
 
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from app.core.guardrails import check_rate_limit
+import jwt
+from app.core.config import settings
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    path = request.url.path
+    if not (path.startswith("/agent/chat") or path.startswith("/agent/dashboard")):
+        return await call_next(request)
+
+    identity = request.client.host if request.client else "unknown"
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        try:
+            payload = jwt.decode(token, settings.secret_key, algorithms=["HS256"])
+            identity = payload.get("sub", identity)
+        except Exception:
+            pass
+
+    limit = 10 if path.startswith("/agent/chat") else 30
+    
+    allowed = await check_rate_limit(path, identity, limit, window=60)
+    if not allowed:
+        return JSONResponse(
+            status_code=429,
+            content={"detail": "Rate limit exceeded. Please try again later."}
+        )
+
+    return await call_next(request)
+
+
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "service": "jarvis-agents"}

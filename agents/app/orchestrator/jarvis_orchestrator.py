@@ -13,6 +13,12 @@ from app.agents.reminder_agent import ReminderAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.core.vision import vision_service
 from app.core.state import conversation_state
+from app.core.guardrails import (
+    sanitize_input,
+    detect_prompt_injection,
+    get_safe_refusal,
+    filter_output,
+)
 from app.schemas.chat import ChatRequest, ChatResponse
 
 finance_agent = FinanceAgent()
@@ -169,6 +175,11 @@ User message: {message}
 
 
 async def run_orchestrator(request: ChatRequest) -> ChatResponse:
+    # ── Guardrails Layer 1 & 2: Input Sanitization & Injection Detection ──
+    request.message = sanitize_input(request.message)
+    if detect_prompt_injection(request.message):
+        return ChatResponse(reply=get_safe_refusal(), actions=[])
+
     # ── Vision Integration ──
     print(f"DEBUG: Orchestrator received message: '{request.message}'")
     print(f"DEBUG: Orchestrator received image: {'[IMAGE DATA PRESENT]' if request.image else '[NO IMAGE]'}")
@@ -315,6 +326,7 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
         full_prompt = f"{user_memory}\n\nUser: {request.message}"
         
         reply = await generate_response(full_prompt, system_prompt=system_prompt)
+        reply = filter_output(reply)
         
         return ChatResponse(
             reply=reply,
@@ -338,7 +350,9 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
             if res.get("actions"):
                 combined_actions.extend(res["actions"])
 
+    final_reply = filter_output("\n\n".join(combined_reply))
+
     return ChatResponse(
-        reply="\n\n".join(combined_reply),
+        reply=final_reply,
         actions=combined_actions,
     )
