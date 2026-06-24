@@ -1,8 +1,12 @@
 import asyncio
 import json
+import logging
 import re
 
+import yfinance as yf
+
 from app.core.llm import LLMUnavailableError, generate_response
+from app.core.redis import cache_get, cache_set
 
 STOCK_OPERATIONS = {
     "get_quote",         # current price of a stock
@@ -82,6 +86,14 @@ NIFTY50_SAMPLE = [
     "BAJFINANCE", "HCLTECH", "ASIANPAINT", "AXISBANK", "MARUTI",
     "TITAN", "SUNPHARMA", "TATAMOTORS", "WIPRO", "NESTLEIND",
 ]
+
+# Cache TTLs (seconds)
+QUOTE_CACHE_TTL = 900    # 15 min — dashboard indices don't need to be real-time
+INFO_CACHE_TTL = 900
+HISTORY_CACHE_TTL = 900
+MOVERS_CACHE_TTL = 900
+
+_log = logging.getLogger(__name__)
 
 
 def normalize_ticker(raw: str) -> str:
@@ -178,7 +190,6 @@ User message: {message}
 
 def _fetch_quote(ticker_symbol: str) -> dict:
     """Blocking call — fetch current quote."""
-    import yfinance as yf
     ticker = yf.Ticker(ticker_symbol)
     info = ticker.info
     # Use 5d so we always have data even when market is closed
@@ -207,7 +218,6 @@ def _fetch_quote(ticker_symbol: str) -> dict:
 
 def _fetch_info(ticker_symbol: str) -> dict:
     """Blocking call — detailed fundamentals."""
-    import yfinance as yf
     info = yf.Ticker(ticker_symbol).info
     return {
         "symbol": ticker_symbol,
@@ -229,7 +239,6 @@ def _fetch_info(ticker_symbol: str) -> dict:
 
 def _fetch_history(ticker_symbol: str, period: str) -> list[dict]:
     """Blocking call — price history."""
-    import yfinance as yf
     hist = yf.Ticker(ticker_symbol).history(period=period)
     if hist.empty:
         return []
@@ -248,7 +257,6 @@ def _fetch_history(ticker_symbol: str, period: str) -> list[dict]:
 
 def _fetch_top_movers(mover_type: str) -> list[dict]:
     """Blocking call — top gainers/losers from Nifty 50 sample."""
-    import yfinance as yf
     symbols = [f"{s}.NS" for s in NIFTY50_SAMPLE]
     data = yf.download(symbols, period="2d", auto_adjust=True, progress=False)
     results = []
@@ -310,15 +318,13 @@ def _fetch_mf_returns(scheme_code: str) -> dict:
     history = mf.get_scheme_historical_nav(scheme_code, as_json=False)
     if not history or "data" not in history:
         return {}
-    nav_data = history["data"]  # list of {date, nav}
+    nav_data = history["data"]  # list of {date, nav}, newest first
     if len(nav_data) < 2:
         return {}
-    # nav_data is newest first
     current_nav = float(nav_data[0]["nav"])
     name = history.get("scheme_name", "")
 
     def nav_n_days_ago(days: int) -> float | None:
-        target = len(nav_data) - 1
         if days <= len(nav_data):
             return float(nav_data[min(days, len(nav_data) - 1)]["nav"])
         return None
@@ -343,53 +349,78 @@ def _fetch_mf_returns(scheme_code: str) -> dict:
 
 # ── Async wrappers ─────────────────────────────────────────────────────────────
 
-from app.core.redis import cache_get, cache_set
+async def _with_retry(fn, *args, retries: int = 3, base_delay: float = 2.0):
+    """Run *fn* with exponential back-off on rate-limit or transient errors."""
+    last_exc: Exception | None = None
+    for attempt in range(retries):
+        try:
+            return await asyncio.get_event_loop().run_in_executor(None, fn, *args)
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc).lower()
+            if "too many requests" in msg or "rate" in msg:
+                wait = base_delay * (2 ** attempt)
+                _log.warning(
+                    "Rate limited on %s (attempt %d/%d), retrying in %.1fs",
+                    fn.__name__, attempt + 1, retries, wait,
+                )
+                await asyncio.sleep(wait)
+            else:
+                raise  # non-rate-limit error, propagate immediately
+    raise last_exc  # type: ignore[misc]  # all retries exhausted
+
 
 async def async_fetch_quote(ticker_symbol: str) -> dict:
     cache_key = f"stock:quote:{ticker_symbol}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
-    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_quote, ticker_symbol)
+    data = await _with_retry(_fetch_quote, ticker_symbol)
     if data:
-        await cache_set(cache_key, data, 300)
+        await cache_set(cache_key, data, QUOTE_CACHE_TTL)
     return data
+
 
 async def async_fetch_info(ticker_symbol: str) -> dict:
     cache_key = f"stock:info:{ticker_symbol}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
-    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_info, ticker_symbol)
+    data = await _with_retry(_fetch_info, ticker_symbol)
     if data:
-        await cache_set(cache_key, data, 300)
+        await cache_set(cache_key, data, INFO_CACHE_TTL)
     return data
+
 
 async def async_fetch_history(ticker_symbol: str, period: str) -> list[dict]:
     cache_key = f"stock:history:{ticker_symbol}:{period}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
-    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_history, ticker_symbol, period)
+    data = await _with_retry(_fetch_history, ticker_symbol, period)
     if data:
-        await cache_set(cache_key, data, 300)
+        await cache_set(cache_key, data, HISTORY_CACHE_TTL)
     return data
+
 
 async def async_fetch_top_movers(mover_type: str) -> list[dict]:
     cache_key = f"stock:movers:{mover_type}"
     cached = await cache_get(cache_key)
     if cached:
         return cached
-    data = await asyncio.get_event_loop().run_in_executor(None, _fetch_top_movers, mover_type)
+    data = await _with_retry(_fetch_top_movers, mover_type)
     if data:
-        await cache_set(cache_key, data, 300)
+        await cache_set(cache_key, data, MOVERS_CACHE_TTL)
     return data
+
 
 async def async_search_mf(query: str) -> list[dict]:
     return await asyncio.get_event_loop().run_in_executor(None, _search_mf, query)
 
+
 async def async_fetch_mf_nav(code: str) -> dict:
     return await asyncio.get_event_loop().run_in_executor(None, _fetch_mf_nav, code)
+
 
 async def async_fetch_mf_returns(code: str) -> dict:
     return await asyncio.get_event_loop().run_in_executor(None, _fetch_mf_returns, code)

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from app.tools.stock_tools import (
@@ -301,17 +302,22 @@ class StockAgent:
 
     async def get_dashboard_stocks(self) -> dict:
         """Returns a market snapshot for the dashboard sidebar."""
+        async def _safe_fetch(ticker: str, name: str) -> dict | None:
+            try:
+                return {"name": name, **(await async_fetch_quote(ticker))}
+            except Exception as exc:
+                logger.warning("[StockAgent] dashboard fetch %s failed: %s", name, exc)
+                return None
+
         try:
-            nifty = await async_fetch_quote("^NSEI")
-            sensex = await async_fetch_quote("^BSESN")
-            bank_nifty = await async_fetch_quote("^NSEBANK")
-            return {
-                "indices": [
-                    {"name": "Nifty 50", **nifty},
-                    {"name": "Sensex", **sensex},
-                    {"name": "Bank Nifty", **bank_nifty},
-                ]
-            }
+            results = await asyncio.gather(
+                _safe_fetch("^NSEI", "Nifty 50"),
+                _safe_fetch("^BSESN", "Sensex"),
+                _safe_fetch("^NSEBANK", "Bank Nifty"),
+            )
+            indices = [r for r in results if r is not None]
+            return {"indices": indices}
         except Exception as exc:
             logger.error("[StockAgent] dashboard failed: %s", exc)
             return {"indices": []}
+
