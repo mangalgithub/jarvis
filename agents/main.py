@@ -22,7 +22,15 @@ async def lifespan(app: FastAPI):
     
     yield
 
+import logfire
+
 app = FastAPI(title="Jarvis Agent Service", lifespan=lifespan)
+
+# Configure Logfire (send_to_logfire='if-token-present' ensures it doesn't crash if unauthenticated locally)
+logfire.configure(send_to_logfire='if-token-present')
+logfire.instrument_fastapi(app)
+# Instrument standard logging
+logfire.instrument_pydantic()
 
 # CORS Configuration
 origins = [

@@ -17,3 +17,4 @@ torch
 google-genai
 pillow
 redis[hiredis]
+logfire[fastapi,httpx,system-metrics,redis,pymongo]

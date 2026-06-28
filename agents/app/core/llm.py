@@ -1,4 +1,5 @@
 import httpx
+import logfire
 
 from app.core.config import settings
 
@@ -39,6 +40,7 @@ async def generate_response(
 
     try:
         async with httpx.AsyncClient(timeout=20) as client:
+            logfire.instrument_httpx(client)
             response = await client.post(
                 settings.groq_api_url,
                 headers=headers,

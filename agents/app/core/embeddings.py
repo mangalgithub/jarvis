@@ -1,3 +1,12 @@
+import os
+import warnings
+
+# Suppress HuggingFace & Transformers warnings before importing them
+os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
+os.environ["TRANSFORMERS_VERBOSITY"] = "error"
+warnings.filterwarnings("ignore", module="transformers")
+warnings.filterwarnings("ignore", message=".*LambdaRuntimeClient.*")
+
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
