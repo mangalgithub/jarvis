@@ -84,6 +84,11 @@ _INJECTION_PATTERNS: list[re.Pattern] = [
     ),
     # Override via code-block tricks
     re.compile(r"```\s*system", re.IGNORECASE),
+    # Identity probing trickery
+    re.compile(
+        r"(who\s+are\s+you\s+really|who\s+actually\s+made\s+you|are\s+you\s+(really\s+)?jarvis)",
+        re.IGNORECASE,
+    ),
 ]
 
 _SAFE_REFUSAL = (
