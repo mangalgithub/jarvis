@@ -12,6 +12,10 @@ import base64
 import logging
 import re
 
+import httpx
+
+from app.core.config import settings
+
 _log = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -60,6 +64,19 @@ _INJECTION_PATTERNS: list[re.Pattern] = [
         r"forget\s+(everything|all)\s+(you\s+were\s+told|above|before|your\s+instructions?)",
         re.IGNORECASE,
     ),
+    re.compile(
+        r"forget\s+(all\s+)?(the\s+)?(previous|prior|above|old|your|earlier)\s+(instructions?|rules?|prompt|guidelines?|context)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"(override|overwrite|replace|reset|clear|erase|delete)\s+(all\s+)?(previous|prior|your|the)?\s*(instructions?|rules?|prompt|guidelines?|constraints?|system)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"from\s+now\s+on\s+(you\s+(will|must|should|are\s+to)|ignore|forget|disregard)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"new\s+instructions?\s*[:=\-]", re.IGNORECASE),
     # Persona hijacking
     re.compile(
         r"\b(you\s+are\s+now|pretend\s+(you\s+are|to\s+be)|act\s+as|roleplay\s+as|imagine\s+you\s+are)\s+"
@@ -89,6 +106,16 @@ _INJECTION_PATTERNS: list[re.Pattern] = [
         r"(who\s+are\s+you\s+really|who\s+actually\s+made\s+you|are\s+you\s+(really\s+)?jarvis)",
         re.IGNORECASE,
     ),
+    # Credential / API key / secret exfiltration attempts
+    re.compile(
+        r"(send|give|share|show|reveal|display|print|output|return|tell\s+me|what\s+is|provide)\s+.{0,50}"
+        r"(api[\s_-]*key|secret[\s_-]*key|auth[\s_-]*token|access[\s_-]*token|password|credential|private[\s_-]*key)",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"\b(api[\s_-]*key|secret[\s_-]*key|auth[\s_-]*token)\b.{0,40}(used|stored|set|configured|is\b|=)",
+        re.IGNORECASE,
+    ),
 ]
 
 _SAFE_REFUSAL = (
@@ -97,16 +124,112 @@ _SAFE_REFUSAL = (
 )
 
 
-def detect_prompt_injection(message: str) -> bool:
+def guardrail_regex_check(message: str) -> bool:
     """
-    Return True if the message contains a prompt-injection or jailbreak attempt.
-    When True, the orchestrator should return _SAFE_REFUSAL immediately.
+    Stage 1 — fast regex pre-filter (synchronous, zero-latency).
+    Return True if the message is an obvious injection/jailbreak attempt.
     """
     for pattern in _INJECTION_PATTERNS:
         if pattern.search(message):
-            _log.warning("Prompt injection detected: pattern=%s msg_preview=%r", pattern.pattern[:40], message[:80])
+            _log.warning(
+                "[Guardrail:Regex] Injection detected: pattern=%s msg_preview=%r",
+                pattern.pattern[:40],
+                message[:80],
+            )
             return True
     return False
+
+
+# Backward-compat alias (old orchestrator import still works)
+def detect_prompt_injection(message: str) -> bool:
+    return guardrail_regex_check(message)
+
+
+async def classify_with_prompt_guard(message: str) -> tuple[bool, str]:
+    """
+    Stage 2 — Llama Prompt Guard 2 on Groq (cloud, no hardware required).
+
+    Llama Prompt Guard 2 is a purpose-built 86M BERT-based classifier trained
+    specifically to detect prompt injection and jailbreak attempts.  It returns
+    a single token: 'BENIGN' or 'INJECTION'.
+
+    Returns:
+        (is_safe: bool, verdict: str)
+        is_safe=False means the request should be blocked.
+        On any network/parse error the function returns (False, 'guardrail_error')
+        so that failures are always fail-safe.
+    """
+    if not settings.groq_api_key:
+        _log.error("[Guardrail:PromptGuard] GROQ_API_KEY not set — blocking (fail-safe)")
+        return False, "no_api_key"
+
+    payload = {
+        "model": settings.guardrail_model,
+        "messages": [{"role": "user", "content": message}],
+        "max_tokens": 10,
+        "temperature": 0,
+    }
+    headers = {
+        "Authorization": f"Bearer {settings.groq_api_key}",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            response = await client.post(
+                settings.groq_api_url,
+                headers=headers,
+                json=payload,
+            )
+            response.raise_for_status()
+        verdict_str = response.json()["choices"][0]["message"]["content"].strip()
+        
+        try:
+            injection_probability = float(verdict_str)
+            # A threshold of 0.5 is standard. >0.5 means likely an injection.
+            is_safe = injection_probability < 0.5
+        except ValueError:
+            # Fallback if the model behaves unexpectedly and returns text
+            is_safe = "BENIGN" in verdict_str.upper() or "SAFE" in verdict_str.upper()
+            
+        _log.info(
+            "[Guardrail:PromptGuard] score=%s is_safe=%s msg_preview=%r",
+            verdict_str,
+            is_safe,
+            message[:80],
+        )
+        if not is_safe:
+            _log.warning(
+                "[Guardrail:PromptGuard] INJECTION detected msg_preview=%r",
+                message[:80],
+            )
+        return is_safe, verdict_str
+
+    except httpx.TimeoutException:
+        _log.error("[Guardrail:PromptGuard] Timeout — blocking (fail-safe)")
+        return False, "guardrail_timeout"
+    except Exception as exc:  # noqa: BLE001
+        _log.error("[Guardrail:PromptGuard] Unexpected error %s — blocking (fail-safe)", exc)
+        return False, "guardrail_error"
+
+
+async def run_guardrails(message: str) -> tuple[bool, str]:
+    """
+    Single async entry point for the full guardrail pipeline.
+
+    Stage 1 — Regex pre-filter  (0 ms, catches obvious patterns)
+    Stage 2 — Llama Prompt Guard 2 on Groq  (~70 ms, catches nuanced attacks)
+
+    Returns:
+        (is_safe: bool, block_reason: str)
+        Call this instead of detect_prompt_injection().
+    """
+    # Stage 1: fast synchronous regex check
+    if guardrail_regex_check(message):
+        return False, "regex"
+
+    # Stage 2: cloud LLM classifier (uses existing Groq key, no hardware needed)
+    return await classify_with_prompt_guard(message)
 
 
 def get_safe_refusal() -> str:

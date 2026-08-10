@@ -15,7 +15,8 @@ from app.core.vision import vision_service
 from app.core.state import conversation_state
 from app.core.guardrails import (
     sanitize_input,
-    detect_prompt_injection,
+    detect_prompt_injection,  # kept for any direct callers
+    run_guardrails,
     get_safe_refusal,
     filter_output,
 )
@@ -175,10 +176,14 @@ User message: {message}
 
 
 async def run_orchestrator(request: ChatRequest) -> ChatResponse:
-    # ── Guardrails Layer 1 & 2: Input Sanitization & Injection Detection ──
+    # ── Guardrails: Stage 1 (Regex) + Stage 2 (Llama Prompt Guard 2 on Groq) ──
     request.message = sanitize_input(request.message)
-    if detect_prompt_injection(request.message):
-        return ChatResponse(reply=get_safe_refusal(), actions=[])
+    is_safe, block_reason = await run_guardrails(request.message)
+    if not is_safe:
+        return ChatResponse(
+            reply=get_safe_refusal(),
+            actions=[{"type": "guardrail_blocked", "reason": block_reason}],
+        )
 
     # ── Vision Integration ──
     print(f"DEBUG: Orchestrator received message: '{request.message}'")

@@ -18,6 +18,12 @@ class Settings(BaseModel):
         "GROQ_API_URL",
         "https://api.groq.com/openai/v1/chat/completions",
     )
+    # Guardrail classifier — Llama Prompt Guard 2 hosted on Groq
+    # Specifically trained for prompt-injection & jailbreak detection
+    guardrail_model: str = getenv(
+        "GUARDRAIL_MODEL",
+        "meta-llama/llama-prompt-guard-2-86m",
+    )
     google_api_key: str | None = getenv("GOOGLE_API_KEY") or getenv("GEMINI_API_KEY")
     news_api_key: str | None = getenv("NEWS_API_KEY")
     youtube_api_key: str | None = getenv("YOUTUBE_API_KEY")
