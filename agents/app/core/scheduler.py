@@ -11,9 +11,11 @@ from app.core.mongodb import get_collection
 
 logger = logging.getLogger(__name__)
 
-# The public URL of THIS Space — set it as an env var on HuggingFace.
-# e.g. https://lagnam-jarvis-agents.hf.space
-_SELF_URL = os.getenv("SPACE_HOST", "").strip().rstrip("/")
+# SPACE_HOST is automatically injected by HuggingFace as a bare hostname,
+# e.g. "lagnam-jarvis-agents.hf.space" (no https:// prefix).
+# We build a full URL from it so the self-ping can call GET /health.
+_raw_host = os.getenv("SPACE_HOST", "").strip().rstrip("/")
+_SELF_URL = f"https://{_raw_host}" if _raw_host and not _raw_host.startswith("http") else _raw_host
 
 scheduler = AsyncIOScheduler()
 
