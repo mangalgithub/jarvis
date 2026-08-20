@@ -72,3 +72,33 @@ async def cache_set(key: str, data: dict | list, expire_seconds: int = 300) -> b
     except Exception as exc:
         _log.warning("Cache SET failed for %s: %s", key, exc)
         return False
+
+
+async def cache_delete(key: str) -> bool:
+    """Safely delete a key from Redis."""
+    try:
+        redis = await get_redis()
+        if not redis:
+            return False
+        await redis.delete(key)
+        return True
+    except Exception as exc:
+        _log.warning("Cache DELETE failed for %s: %s", key, exc)
+        return False
+
+
+async def cache_delete_pattern(pattern: str) -> bool:
+    """Safely delete all keys matching a pattern from Redis."""
+    try:
+        redis = await get_redis()
+        if not redis:
+            return False
+        keys = []
+        async for key in redis.scan_iter(match=pattern):
+            keys.append(key)
+        if keys:
+            await redis.delete(*keys)
+        return True
+    except Exception as exc:
+        _log.warning("Cache DELETE pattern failed for %s: %s", pattern, exc)
+        return False

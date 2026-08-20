@@ -4,6 +4,7 @@ import logging
 from fastapi import APIRouter, Depends
 
 from app.core.auth import verify_token
+from app.core.redis import cache_get, cache_set
 
 from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
@@ -20,6 +21,8 @@ memory_agent = MemoryAgent()
 stock_agent = StockAgent()
 
 logger = logging.getLogger(__name__)
+
+DASHBOARD_CACHE_TTL = 45  # seconds
 
 
 def serialize_value(value):
@@ -195,6 +198,15 @@ async def dashboard(
     category: str | None = None,
     user_id: str = Depends(verify_token),
 ):
+    normalized_range = date_range.strip().lower()
+    normalized_category = str(category).strip().lower() if category else "all"
+    cache_key = f"dashboard:{user_id}:{normalized_range}:{normalized_category}"
+
+    cached_dashboard = await cache_get(cache_key)
+    if cached_dashboard is not None:
+        logger.debug("[dashboard] Returning cached dashboard for key %s", cache_key)
+        return cached_dashboard
+
     filter_label, filter_start, filter_end = resolve_date_range(
         {"label": date_range},
         date_range,
@@ -239,7 +251,7 @@ async def dashboard(
         _safe_reminders(user_id),
     )
 
-    return {
+    data = {
         "finance": {
             "filters": {
                 "dateRange": filter_label,
@@ -270,3 +282,6 @@ async def dashboard(
         "learning": None,
         "reminders": reminders_data,
     }
+
+    await cache_set(cache_key, data, expire_seconds=DASHBOARD_CACHE_TTL)
+    return data
