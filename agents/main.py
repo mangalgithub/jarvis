@@ -1,4 +1,5 @@
 from contextlib import asynccontextmanager
+import logging
 
 from fastapi import FastAPI
 
@@ -11,14 +12,90 @@ from app.core.mongodb import get_collection
 
 from fastapi.middleware.cors import CORSMiddleware
 
+logger = logging.getLogger(__name__)
+
+
+async def create_mongodb_indexes():
+    """Create indexes for the app's real query patterns."""
+    index_specs = [
+        ("users", [("email", 1)], {"unique": True, "name": "uniq_users_email"}),
+
+        ("expenses", [("user_id", 1), ("created_at", -1)], {"name": "idx_expenses_user_created"}),
+        ("expenses", [("user_id", 1), ("occurred_at", -1)], {"name": "idx_expenses_user_occurred"}),
+        ("expenses", [("user_id", 1), ("category", 1), ("occurred_at", -1)], {"name": "idx_expenses_user_category_occurred"}),
+
+        ("income", [("user_id", 1), ("occurred_at", -1)], {"name": "idx_income_user_occurred"}),
+        ("budgets", [("user_id", 1), ("category", 1), ("period", 1)], {"unique": True, "name": "uniq_budgets_user_category_period"}),
+        ("recurring_expenses", [("user_id", 1), ("created_at", -1)], {"name": "idx_recurring_user_created"}),
+        ("savings_goals", [("user_id", 1), ("created_at", -1)], {"name": "idx_savings_user_created"}),
+
+        ("nutrition_logs", [("user_id", 1), ("logged_at", -1)], {"name": "idx_nutrition_user_logged"}),
+        ("water_logs", [("user_id", 1), ("logged_at", -1)], {"name": "idx_water_user_logged"}),
+        ("workout_logs", [("user_id", 1), ("logged_at", -1)], {"name": "idx_workout_user_logged"}),
+        ("health_goals", [("user_id", 1)], {"unique": True, "name": "uniq_health_goals_user"}),
+        ("nutrition_knowledge", [("food_name", 1)], {"unique": True, "name": "uniq_nutrition_food_name"}),
+
+        ("user_memory", [("user_id", 1), ("key", 1)], {"unique": True, "name": "uniq_memory_user_key"}),
+        ("user_memory", [("user_id", 1), ("category", 1)], {"name": "idx_memory_user_category"}),
+
+        ("pending_actions", [("user_id", 1), ("agent", 1), ("created_at", -1)], {"name": "idx_pending_user_agent_created"}),
+
+        ("reminders", [("status", 1), ("execute_at", 1)], {"name": "idx_reminders_status_execute_at"}),
+        ("reminders", [("user_id", 1), ("status", 1), ("execute_at", 1)], {"name": "idx_reminders_user_status_execute_at"}),
+    ]
+
+    for collection_name, keys, options in index_specs:
+        collection = get_collection(collection_name)
+        index_name = options.get("name")
+
+        try:
+            existing_indexes = await collection.index_information()
+
+            # Check whether an index with the same key definition already exists
+            existing_index_name = None
+
+            for name, info in existing_indexes.items():
+                if info.get("key") == keys:
+                    existing_index_name = name
+                    break
+
+            if existing_index_name:
+                if existing_index_name == index_name:
+                    logger.info(
+                        "MongoDB index %s already exists on %s",
+                        index_name,
+                        collection_name,
+                    )
+                else:
+                    logger.info(
+                        "MongoDB index already exists on %s as %s; "
+                        "skipping creation of %s",
+                        collection_name,
+                        existing_index_name,
+                        index_name,
+                    )
+                continue
+
+            await collection.create_index(keys, **options)
+
+            logger.info(
+                "Created MongoDB index %s on %s",
+                index_name,
+                collection_name,
+            )
+
+        except Exception as exc:
+            logger.warning(
+                "Could not create MongoDB index %s on %s: %s",
+                index_name or keys,
+                collection_name,
+                exc,
+            )
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     start_scheduler()
-    
-    # Add MongoDB indexes for query performance
-    await get_collection("nutrition_logs").create_index([("user_id", 1), ("logged_at", -1)])
-    await get_collection("water_logs").create_index([("user_id", 1), ("logged_at", -1)])
-    await get_collection("expenses").create_index([("user_id", 1), ("created_at", -1)])
+    await create_mongodb_indexes()
     
     yield
 
