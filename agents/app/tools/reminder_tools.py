@@ -1,7 +1,7 @@
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional
 
 from app.core.llm import LLMUnavailableError, generate_response
@@ -9,6 +9,32 @@ from app.core.mongodb import get_collection
 from bson import ObjectId
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_execute_at(value: str | None) -> datetime:
+    if not value:
+        return datetime.now(timezone.utc) + timedelta(minutes=5)
+
+    try:
+        normalized = value.replace("Z", "+00:00")
+        parsed = datetime.fromisoformat(normalized)
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
+    except Exception:
+        logger.warning("Invalid reminder execute_at value %r; defaulting to 5 minutes", value)
+        return datetime.now(timezone.utc) + timedelta(minutes=5)
+
+
+def serialize_reminder(doc: Dict) -> Dict:
+    serialized = dict(doc)
+    if "_id" in serialized:
+        serialized["_id"] = str(serialized["_id"])
+    for field in ("execute_at", "created_at"):
+        value = serialized.get(field)
+        if isinstance(value, datetime):
+            serialized[field] = value.isoformat()
+    return serialized
 
 
 def _parse_json(text: str) -> dict:
@@ -72,24 +98,18 @@ User message: "{message}"
 
 async def create_reminder(user_id: str, task: str, execute_at: str) -> Dict:
     collection = get_collection("reminders")
-    
-    # Normalize execute_at to UTC string to ensure correct DB string comparison
-    try:
-        dt = datetime.fromisoformat(execute_at)
-        utc_execute_at = dt.astimezone(timezone.utc).isoformat()
-    except Exception:
-        utc_execute_at = execute_at
+    utc_execute_at = _parse_execute_at(execute_at)
 
     doc = {
         "user_id": user_id,
         "task": task,
         "execute_at": utc_execute_at,
         "status": "pending",  # pending, triggered, acknowledged
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(timezone.utc),
     }
     res = await collection.insert_one(doc)
     doc["_id"] = str(res.inserted_id)
-    return doc
+    return serialize_reminder(doc)
 
 
 async def get_active_reminders(user_id: str) -> List[Dict]:
@@ -98,8 +118,7 @@ async def get_active_reminders(user_id: str) -> List[Dict]:
     cursor = collection.find({"user_id": user_id, "status": {"$in": ["pending", "triggered"]}}).sort("execute_at", 1)
     results = []
     async for doc in cursor:
-        doc["_id"] = str(doc["_id"])
-        results.append(doc)
+        results.append(serialize_reminder(doc))
     return results
 
 

@@ -8,6 +8,7 @@ from bson import ObjectId
 
 from app.api.routes.websockets import manager as ws_manager
 from app.core.mongodb import get_collection
+from app.tools.reminder_tools import serialize_reminder
 
 logger = logging.getLogger(__name__)
 
@@ -29,12 +30,14 @@ async def check_reminders():
         # Find pending reminders where execute_at <= now
         cursor = collection.find({
             "status": "pending",
-            "execute_at": {"$lte": now}
+            "$or": [
+                {"execute_at": {"$lte": now}},
+                {"execute_at": {"$lte": now.isoformat()}},
+            ],
         })
 
         reminders_to_trigger = []
         async for doc in cursor:
-            doc["_id"] = str(doc["_id"])
             reminders_to_trigger.append(doc)
 
         for r in reminders_to_trigger:
@@ -49,7 +52,7 @@ async def check_reminders():
             # Broadcast via WebSocket
             message = {
                 "type": "reminder_triggered",
-                "reminder": r
+                "reminder": serialize_reminder(r),
             }
             await ws_manager.broadcast_to_user(r["user_id"], message)
 

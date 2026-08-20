@@ -37,6 +37,7 @@ VALID_INTENTS = {
     "stock_analysis",
     "learning_help",
     "memory_management",
+    "reminder_management",
     "general_chat",
 }
 
@@ -149,6 +150,7 @@ Allowed intents:
 - stock_analysis: stocks, market, mutual funds, Nifty, Sensex, investments
 - learning_help: learning plans, courses, YouTube, AI/tech study help
 - memory_management: saving/recalling personal facts, user preferences, erasing memory
+- reminder_management: reminders, timers, alerts, scheduled tasks, or acknowledging reminders
 - general_chat: anything else
 
 Return only valid JSON in this exact shape:

@@ -533,47 +533,6 @@ class FinanceAgent:
             "actions": [{"type": "savings_goal_query_result", "goals": serialized}],
         }
 
-    async def _analytics(self, user_id: str):
-        now = datetime.now(UTC)
-        current_month_start, _ = month_bounds(datetime.now().astimezone())
-        previous_month_end = current_month_start - timedelta(microseconds=1)
-        previous_month_start, _ = month_bounds(previous_month_end.astimezone())
-        current_expenses = await self._get_expenses(user_id, current_month_start, now, {})
-        previous_expenses = await self._get_expenses(user_id, previous_month_start, previous_month_end, {})
-        current_total = sum(expense["amount"] for expense in current_expenses)
-        previous_total = sum(expense["amount"] for expense in previous_expenses)
-        category_totals = defaultdict(float)
-
-        for expense in current_expenses:
-            category_totals[expense["category"]] += expense["amount"]
-
-        top_category = max(category_totals.items(), key=lambda item: item[1], default=("None", 0))
-        biggest = max(current_expenses, key=lambda expense: expense["amount"], default=None)
-        delta = current_total - previous_total
-        biggest_text = (
-            f" Biggest expense: {self._money(biggest['amount'])} on {biggest['description']}."
-            if biggest
-            else ""
-        )
-
-        return {
-            "reply": (
-                f"This month you spent {self._money(current_total)}, "
-                f"{self._money(abs(delta))} {'more' if delta >= 0 else 'less'} than last month. "
-                f"Top category: {top_category[0]} ({self._money(top_category[1])})."
-                f"{biggest_text}"
-            ),
-            "actions": [
-                {
-                    "type": "finance_analytics",
-                    "current_month_total": current_total,
-                    "previous_month_total": previous_total,
-                    "top_category": {"category": top_category[0], "total": top_category[1]},
-                    "biggest_expense": biggest,
-                }
-            ],
-        }
-
     async def _find_matching_expense(
         self,
         user_id: str,
