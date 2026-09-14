@@ -11,45 +11,25 @@ from datetime import datetime, timezone
 from typing import Optional
 
 
-# ─── Known bank/payment sender IDs ───────────────────────────────────────────
-KNOWN_PAYMENT_SENDERS = {
-    # Google Pay
-    "AD-GPAY", "BW-GPAY", "VM-GPAY", "VD-GPAY", "JD-GPAY",
-    # PhonePe
-    "AD-PHONEPE", "VM-PHONEPE", "BW-PHONEPE", "VD-PPAY",
-    # Paytm
-    "AD-PAYTM", "VM-PAYTM", "VD-PAYTM", "BW-PAYTM",
-    # Bank of India
-    "AD-BOIINB", "VM-BOIINB", "BW-BOIINB", "VD-BOIINB", "JD-BOIINB",
-    # HDFC
-    "AD-HDFCBK", "VM-HDFCBK", "BW-HDFCBK",
-    # SBI
-    "AD-SBIINB", "VM-SBIINB", "BW-SBIINB",
-    # ICICI
-    "AD-ICICIB", "VM-ICICIB",
-    # Axis
-    "AD-AXISBK", "VM-AXISBK",
-    # Kotak
-    "AD-KOTAKB", "VM-KOTAKB",
-    # Generic UPI
-    "AD-UPIBNK", "VM-UPIBNK",
-    # Amazon Pay
-    "AD-AMAZON", "VM-AMAZON",
-}
+KNOWN_PAYMENT_CODES = [
+    "GPAY", "PHONEPE", "PPAY", "PAYTM", "BOIINB", "HDFCBK", "SBIINB",
+    "ICICIB", "AXISBK", "KOTAKB", "AMAZON", "UPIBNK", "CANBNK", "UNIONB",
+    "FEDBNK", "IDFCBK", "PNBSMS", "YESBNK", "INDUSB", "BANK", "CARDS",
+]
 
 
 def is_payment_sms(sender: str, body: str) -> bool:
     """Return True if the SMS looks like a payment/debit notification."""
     sender_upper = (sender or "").upper().strip()
-    if sender_upper in KNOWN_PAYMENT_SENDERS:
+    if any(code in sender_upper for code in KNOWN_PAYMENT_CODES):
         return True
 
     # Keyword heuristic for unknown sender IDs
     keywords = [
         "debited", "debit", "paid", "payment", "spent", "purchase",
-        "transaction", "upi", "neft", "imps", "credited",
+        "transaction", "upi", "neft", "imps", "credited", "a/c", "ref", "txn",
     ]
-    body_lower = body.lower()
+    body_lower = (body or "").lower()
     return any(kw in body_lower for kw in keywords)
 
 

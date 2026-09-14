@@ -196,21 +196,38 @@ class SmsExpenseAgent:
             "updated_at": now,
         }
 
-        # 4. Duplicate check — same amount + merchant within 5 minutes
-        five_min_ago = datetime.fromtimestamp(now.timestamp() - 300, tz=timezone.utc)
+        # 4. Duplicate check — reference_id, raw_sms, or same amount + merchant within 24 hours
+        ref_id = parsed.get("reference_id")
+        raw_sms = parsed.get("raw_sms")
+        one_day_ago = datetime.fromtimestamp(now.timestamp() - 86400, tz=timezone.utc)
+
+        or_conditions = [
+            {
+                "amount": parsed["amount"],
+                "description": description,
+                "created_at": {"$gte": one_day_ago},
+            }
+        ]
+        if ref_id:
+            or_conditions.append({"sms_metadata.reference_id": ref_id})
+        if raw_sms:
+            or_conditions.append({"sms_metadata.raw_sms": raw_sms})
+
         duplicate = await get_collection("expenses").find_one({
             "user_id": user_id,
-            "amount": parsed["amount"],
-            "description": description,
             "source": "sms",
-            "created_at": {"$gte": five_min_ago},
+            "$or": or_conditions,
         })
 
         if duplicate:
+            logger.info(
+                "[SmsExpenseAgent] Duplicate SMS skipped: ₹%.2f at %s (Ref: %s)",
+                parsed["amount"], description, ref_id or "N/A",
+            )
             return {
                 "success": False,
                 "expense": None,
-                "message": f"Duplicate SMS expense detected (₹{parsed['amount']} at {description}).",
+                "message": f"Duplicate SMS expense already logged (₹{parsed['amount']} at {description}).",
             }
 
         # 5. Insert

@@ -22,31 +22,22 @@ import { useEffect, useRef, useCallback } from "react";
 import SmsPlugin, { isAndroidNative, SmsMessage } from "@/src/plugins/SmsPlugin";
 import { Capacitor } from "@capacitor/core";
 
-// ─── Bank/payment sender ID filter ───────────────────────────────────────────
-// Only process SMS from these sender patterns to avoid false positives
-const PAYMENT_SENDER_PATTERNS = [
-  /^AD-GPAY$/i, /^BW-GPAY$/i, /^VM-GPAY$/i, /^VD-GPAY$/i,
-  /^VM-PHONEPE$/i, /^AD-PHONEPE$/i, /^BW-PHONEPE$/i, /^VD-PPAY$/i,
-  /^AD-PAYTM$/i, /^VM-PAYTM$/i, /^VD-PAYTM$/i, /^BW-PAYTM$/i,
-  /^AD-BOIINB$/i, /^VM-BOIINB$/i, /^BW-BOIINB$/i, /^VD-BOIINB$/i,
-  /^AD-HDFCBK$/i, /^VM-HDFCBK$/i, /^BW-HDFCBK$/i,
-  /^AD-SBIINB$/i, /^VM-SBIINB$/i, /^BW-SBIINB$/i,
-  /^AD-ICICIB$/i, /^VM-ICICIB$/i,
-  /^AD-AXISBK$/i, /^VM-AXISBK$/i,
-  /^AD-KOTAKB$/i, /^VM-KOTAKB$/i,
-  /^AD-AMAZON$/i, /^VM-AMAZON$/i,
+const PAYMENT_SENDER_CODES = [
+  "GPAY", "PHONEPE", "PPAY", "PAYTM", "BOIINB", "HDFCBK", "SBIINB",
+  "ICICIB", "AXISBK", "KOTAKB", "AMAZON", "UPIBNK", "CANBNK", "UNIONB",
+  "FEDBNK", "IDFCBK", "PNBSMS", "YESBNK", "INDUSB", "BANK", "CARDS",
 ];
 
 // Keyword fallback for unknown sender IDs
 const PAYMENT_KEYWORDS = [
   "debited", "debit", "paid", "payment", "upi", "imps", "neft",
-  "credited", "purchase", "spent",
+  "credited", "purchase", "spent", "txn", "ref", "a/c",
 ];
 
 function isPaymentSms(sender: string, body: string): boolean {
-  const senderUp = sender.toUpperCase().trim();
-  if (PAYMENT_SENDER_PATTERNS.some(p => p.test(senderUp))) return true;
-  const bodyLower = body.toLowerCase();
+  const senderUp = (sender || "").toUpperCase().trim();
+  if (PAYMENT_SENDER_CODES.some(code => senderUp.includes(code))) return true;
+  const bodyLower = (body || "").toLowerCase();
   return PAYMENT_KEYWORDS.some(kw => bodyLower.includes(kw));
 }
 
