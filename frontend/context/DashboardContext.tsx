@@ -1,7 +1,9 @@
-"use client";
+  "use client";
 
 import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { useSmsExpenseTracker } from "@/hooks/useSmsExpenseTracker";
+import { API_BASE_URL } from "@/lib/apiConfig";
 
 // Types
 export type Message = {
@@ -52,6 +54,13 @@ export type Expense = {
   payment_method?: string;
   occurred_at?: string;
   created_at?: string;
+  source?: "sms" | "manual" | string;
+  sms_metadata?: {
+    sender?: string;
+    bank?: string;
+    account_last4?: string;
+    reference_id?: string;
+  };
 };
 
 export type SavingsGoal = {
@@ -161,12 +170,13 @@ interface DashboardContextType {
   loadDashboard: () => Promise<void>;
   sendMessage: (message: string, image?: string) => Promise<void>;
   acknowledgeReminder: (reminder: Reminder) => void;
+  // SMS expense tracking
+  smsExpenses: Expense[];
+  smsTrackingActive: boolean;
+  lastSmsExpense: { amount: number; description: string; category: string; bank: string } | null;
 }
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ||
-  (typeof window !== "undefined" && window.location.hostname !== "localhost"
-    ? window.location.origin
-    : "http://localhost:3000");
+
 
 const DashboardContext = createContext<DashboardContextType | undefined>(undefined);
 
@@ -190,6 +200,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [isDashboardLoading, setIsDashboardLoading] = useState(true);
   const [error, setError] = useState("");
   const [isDarkMode, setIsDarkMode] = useState(false);
+  // SMS tracking state
+  const [smsExpenses, setSmsExpenses] = useState<Expense[]>([]);
+  const [smsTrackingActive, setSmsTrackingActive] = useState(false);
+  const [lastSmsExpense, setLastSmsExpense] = useState<{ amount: number; description: string; category: string; bank: string } | null>(null);
 
   // Initialize theme
   useEffect(() => {
@@ -268,6 +282,42 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void loadDashboard();
   }, [loadDashboard]);
+
+  // ── Fetch SMS-tracked expenses from backend ──────────────────────────────
+  const loadSmsExpenses = useCallback(async () => {
+    const token = localStorage.getItem("jarvis_token");
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/expenses/sms?limit=20`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json() as { expenses: Expense[]; count: number };
+      setSmsExpenses(data.expenses || []);
+      setSmsTrackingActive(true);
+    } catch {
+      // SMS expenses are optional — don't break the app
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadSmsExpenses();
+  }, [loadSmsExpenses]);
+
+  // ── SMS Expense Tracker hook (Android native only) ───────────────────────
+  const token = typeof window !== "undefined" ? localStorage.getItem("jarvis_token") : null;
+  useSmsExpenseTracker({
+    apiBaseUrl: API_BASE_URL,
+    token,
+    onExpenseTracked: (expense) => {
+      setLastSmsExpense(expense);
+      // Refresh SMS expenses list + dashboard after new auto-track
+      void loadSmsExpenses();
+      void loadDashboard();
+      // Clear the "last tracked" toast after 5 seconds
+      setTimeout(() => setLastSmsExpense(null), 5000);
+    },
+  });
 
   // WebSocket for reminders
   useEffect(() => {
@@ -370,7 +420,11 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       userName,
       loadDashboard,
       sendMessage,
-      acknowledgeReminder
+      acknowledgeReminder,
+      // SMS tracking
+      smsExpenses,
+      smsTrackingActive,
+      lastSmsExpense,
     }}>
       {children}
     </DashboardContext.Provider>

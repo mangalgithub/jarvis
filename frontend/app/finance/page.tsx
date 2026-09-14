@@ -8,8 +8,31 @@ import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
 import { money, shortDate } from "@/lib/utils";
 import { Card } from "@heroui/react";
 
+// ─── Category emoji map ───────────────────────────────────────────────────────
+const CATEGORY_EMOJI: Record<string, string> = {
+  "Food & Dining": "🍕",
+  "Transport": "🚗",
+  "Shopping": "🛍️",
+  "Entertainment": "🎬",
+  "Bills & Utilities": "💡",
+  "Health & Medical": "💊",
+  "Groceries": "🛒",
+  "Travel": "✈️",
+  "Education": "📚",
+  "Fuel": "⛽",
+  "Clothing": "👕",
+  "Electronics": "📱",
+  "Subscriptions": "📺",
+  "Personal Care": "🪥",
+  "Transfers": "💸",
+  "Other": "💰",
+};
+
 export default function FinancePage() {
-  const { dashboard, dateRange, setDateRange, category, setCategory, loadDashboard, sendMessage } = useDashboard();
+  const {
+    dashboard, dateRange, setDateRange, category, setCategory,
+    sendMessage, smsExpenses, lastSmsExpense,
+  } = useDashboard();
   const finance = dashboard?.finance;
 
   if (!finance) {
@@ -23,6 +46,25 @@ export default function FinancePage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
+
+      {/* ── SMS auto-tracked toast ─────────────────────────────────────── */}
+      {lastSmsExpense && (
+        <div
+          role="status"
+          className="fixed bottom-6 right-6 z-50 flex items-start gap-3 rounded-2xl border border-cyan-400/30 bg-slate-900/95 px-5 py-4 shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-4 duration-300"
+        >
+          <span className="text-2xl">📱</span>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-cyan-400">Auto-tracked</p>
+            <p className="text-sm font-bold text-white">{lastSmsExpense.description}</p>
+            <p className="text-xs text-slate-400">
+              {money(lastSmsExpense.amount)} · {lastSmsExpense.category}
+              {lastSmsExpense.bank ? ` · ${lastSmsExpense.bank}` : ""}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
@@ -202,6 +244,89 @@ export default function FinancePage() {
           </div>
         </PanelCard>
       </div>
+
+      {/* ── SMS Auto-tracked Expenses ───────────────────────────────────── */}
+      {smsExpenses.length > 0 && (
+        <PanelCard>
+          <div className="flex items-center justify-between mb-4">
+            <SectionTitle
+              title="Auto-tracked (SMS)"
+              subtitle={`${smsExpenses.length} expense${smsExpenses.length !== 1 ? "s" : ""} detected automatically`}
+            />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-500 ring-1 ring-cyan-500/20">
+              📱 Live
+            </span>
+          </div>
+
+          <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
+            {smsExpenses.map((exp) => {
+              const emoji = CATEGORY_EMOJI[exp.category] ?? "💰";
+              const bank = exp.sms_metadata?.bank;
+              const last4 = exp.sms_metadata?.account_last4;
+              const ref = exp.sms_metadata?.reference_id;
+
+              return (
+                <div
+                  key={exp._id}
+                  className="group flex items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3 transition-all hover:border-cyan-400/30 hover:bg-cyan-50/30 dark:border-white/5 dark:bg-white/5 dark:hover:border-cyan-400/20 dark:hover:bg-cyan-400/5"
+                >
+                  {/* Left: emoji + info */}
+                  <div className="flex items-start gap-3 min-w-0">
+                    <span className="mt-0.5 text-xl shrink-0">{emoji}</span>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate text-sm font-bold text-slate-900 dark:text-white">
+                          {exp.description}
+                        </p>
+                        <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-white/10 dark:text-slate-400">
+                          {exp.category}
+                        </span>
+                        <span className="shrink-0 rounded-full bg-cyan-100 px-2 py-0.5 text-[10px] font-semibold text-cyan-700 dark:bg-cyan-500/10 dark:text-cyan-400">
+                          📱 SMS
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                        {bank && <span>{bank}</span>}
+                        {last4 && <span> · ···{last4}</span>}
+                        {exp.payment_method && <span> · {exp.payment_method}</span>}
+                        {" · "}{shortDate(exp.occurred_at || exp.created_at)}
+                      </p>
+                      {ref && (
+                        <p className="mt-0.5 text-[10px] font-mono text-slate-400 dark:text-slate-500">
+                          Ref: {ref}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Right: amount + delete */}
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">
+                      {money(exp.amount)}
+                    </p>
+                    <button
+                      onClick={() => sendMessage(`delete expense id ${exp._id}`)}
+                      className="mt-1 text-[10px] text-rose-400 opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Summary footer */}
+          <div className="mt-4 flex items-center justify-between rounded-xl bg-slate-100 px-4 py-3 dark:bg-white/5">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+              Total auto-tracked
+            </p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">
+              {money(smsExpenses.reduce((sum, e) => sum + e.amount, 0))}
+            </p>
+          </div>
+        </PanelCard>
+      )}
     </div>
   );
 }

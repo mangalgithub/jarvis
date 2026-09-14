@@ -1,7 +1,9 @@
 import asyncio
 import logging
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from app.core.auth import verify_token
 from app.core.redis import cache_get, cache_set
@@ -10,6 +12,7 @@ from app.agents.health_agent import HealthAgent
 from app.agents.news_agent import NewsAgent
 from app.agents.memory_agent import MemoryAgent
 from app.agents.stock_agent import StockAgent
+from app.agents.sms_expense_agent import SmsExpenseAgent
 from app.tools.reminder_tools import get_active_reminders
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import month_bounds, now_local, resolve_date_range
@@ -19,8 +22,16 @@ news_agent = NewsAgent()
 health_agent = HealthAgent()
 memory_agent = MemoryAgent()
 stock_agent = StockAgent()
+sms_expense_agent = SmsExpenseAgent()
 
 logger = logging.getLogger(__name__)
+
+
+# ─── Pydantic model for SMS ingestion ─────────────────────────────────────────
+class SmsExpenseRequest(BaseModel):
+    sms_body: str
+    sender: str = ""
+    received_at: str | None = None  # ISO 8601 string from Android
 
 DASHBOARD_CACHE_TTL = 45  # seconds
 
@@ -285,3 +296,44 @@ async def dashboard(
 
     await cache_set(cache_key, data, expire_seconds=DASHBOARD_CACHE_TTL)
     return data
+
+
+# ─── SMS Expense Endpoints ────────────────────────────────────────────────────
+
+@router.post("/expenses/sms")
+async def ingest_sms_expense(
+    payload: SmsExpenseRequest,
+    user_id: str = Depends(verify_token),
+):
+    """
+    Called by the Android app when a new payment SMS is received.
+    Parses the SMS, auto-categorizes, and saves to MongoDB.
+    """
+    received_at = None
+    if payload.received_at:
+        try:
+            received_at = datetime.fromisoformat(payload.received_at)
+            if received_at.tzinfo is None:
+                received_at = received_at.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+
+    result = await sms_expense_agent.process_sms(
+        user_id=user_id,
+        sms_body=payload.sms_body,
+        sender=payload.sender,
+        received_at=received_at,
+    )
+    return result
+
+
+@router.get("/expenses/sms")
+async def get_sms_expenses(
+    limit: int = 30,
+    user_id: str = Depends(verify_token),
+):
+    """
+    Returns the most recent SMS-auto-tracked expenses for the dashboard.
+    """
+    expenses = await sms_expense_agent.get_sms_expenses(user_id=user_id, limit=limit)
+    return {"expenses": expenses, "count": len(expenses)}

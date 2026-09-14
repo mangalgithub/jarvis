@@ -3,6 +3,7 @@ const express = require("express");
 const chatRoutes = require("./routes/chat.routes");
 const dashboardRoutes = require("./routes/dashboard.routes");
 const authRoutes = require("./routes/auth.routes");
+const expensesRoutes = require("./routes/expenses.routes");
 const { errorMiddleware } = require("./middleware/error.middleware");
 
 const app = express();
@@ -33,6 +34,7 @@ app.get("/health", (req, res) => {
 app.use(["/api/chat", "/chat"], chatRoutes);
 app.use(["/api/dashboard", "/dashboard"], dashboardRoutes);
 app.use(["/api/auth", "/auth"], authRoutes);
+app.use(["/api/expenses", "/expenses"], expensesRoutes);
 
 app.use(errorMiddleware);
 

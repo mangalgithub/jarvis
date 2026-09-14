@@ -47,4 +47,49 @@ async function getDashboardFromAgent({ userId, dateRange, category, authHeader }
   return response.json();
 }
 
-module.exports = { sendMessageToAgent, getDashboardFromAgent };
+async function ingestSmsExpense({ smsBody, sender, receivedAt, authHeader }) {
+  const headers = { "Content-Type": "application/json" };
+  if (authHeader) headers["Authorization"] = authHeader;
+
+  const response = await fetch(`${AGENT_SERVICE_URL}/agent/expenses/sms`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({
+      sms_body: smsBody,
+      sender: sender || "",
+      received_at: receivedAt || null,
+    }),
+  });
+
+  if (!response.ok) {
+    const err = new Error(`Agent SMS ingestion failed with status ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+
+  return response.json();
+}
+
+async function getSmsExpenses({ limit, authHeader }) {
+  const headers = {};
+  if (authHeader) headers["Authorization"] = authHeader;
+
+  const response = await fetch(`${AGENT_SERVICE_URL}/agent/expenses/sms?limit=${limit || 30}`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const err = new Error(`Agent get SMS expenses failed with status ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+
+  return response.json();
+}
+
+module.exports = {
+  sendMessageToAgent,
+  getDashboardFromAgent,
+  ingestSmsExpense,
+  getSmsExpenses,
+};

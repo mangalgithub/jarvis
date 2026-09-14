@@ -1,4 +1,4 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
+const API_BASE_URL = (typeof process !== "undefined" && process.env.NEXT_PUBLIC_API_BASE_URL) || "https://jarvis-gamma-ten.vercel.app";
 
 export async function apiRequest(path, options = {}) {
   const response = await fetch(`${API_BASE_URL}${path}`, {

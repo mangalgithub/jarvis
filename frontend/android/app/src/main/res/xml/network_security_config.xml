@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Config for Jarvis Android app.
+
+    During development: allows cleartext (HTTP) traffic to your local backend
+    and to *.ngrok.io tunnels.
+
+    For production: switch your backend to HTTPS and remove the cleartext
+    domain entries below, keeping only the base-config with cleartextPermitted="false".
+-->
+<network-security-config>
+    <!-- Local development backend (your PC running FastAPI/Node.js) -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>    <!-- Android emulator → host -->
+        <domain includeSubdomains="true">192.168.0.0</domain> <!-- common home network prefix -->
+        <domain includeSubdomains="true">192.168.1.0</domain>
+        <!-- Your Vercel/production domain — must be HTTPS so this won't apply anyway -->
+    </domain-config>
+
+    <!-- Default: all other domains require HTTPS -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

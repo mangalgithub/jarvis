@@ -4,10 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@heroui/react";
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 
-  (typeof window !== "undefined" && window.location.hostname !== "localhost" 
-    ? window.location.origin 
-    : "http://localhost:3000");
+import { API_BASE_URL } from "@/lib/apiConfig";
 
 export default function LoginPage() {
   const router = useRouter();
