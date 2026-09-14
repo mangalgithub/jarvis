@@ -55,10 +55,37 @@ public class SmsPlugin extends Plugin {
     // Static reference so SmsReceiver (BroadcastReceiver) can call us
     private static SmsPlugin instance;
 
+    /**
+     * True while the JS WebView has an active "onSmsReceived" listener.
+     * SmsReceiver checks this to decide whether the JS bridge can handle
+     * the SMS itself, or whether the native SmsListenerService fallback
+     * is needed (app fully backgrounded / WebView not running).
+     */
+    private static boolean isJsBridgeActive = false;
+
+    /** Call from SmsReceiver to check if JS is ready to handle the SMS. */
+    public static boolean isJsBridgeActive() {
+        return instance != null && isJsBridgeActive;
+    }
+
     @Override
     public void load() {
         instance = this;
         Log.d(TAG, "SmsPlugin loaded and ready");
+    }
+
+    @Override
+    protected void handleOnResume() {
+        // WebView is visible and active — JS bridge is fully operational
+        isJsBridgeActive = true;
+        Log.d(TAG, "SmsPlugin: JS bridge is now ACTIVE (app foregrounded)");
+    }
+
+    @Override
+    protected void handleOnPause() {
+        // App went to background — JS bridge may become unavailable soon
+        isJsBridgeActive = false;
+        Log.d(TAG, "SmsPlugin: JS bridge is now INACTIVE (app backgrounded)");
     }
 
     /** Called by SmsReceiver when a new SMS arrives. */

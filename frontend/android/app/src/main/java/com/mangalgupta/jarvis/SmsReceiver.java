@@ -20,9 +20,18 @@ import androidx.core.content.ContextCompat;
  * even when the app is in the background, as long as the app has
  * the RECEIVE_SMS permission granted.
  *
- * Flow: SMS arrives → onReceive() → stores in SmsPlugin.lastSms →
- *       starts SmsListenerService if app is in background →
- *       service reads the SMS and POSTs to Jarvis backend.
+ * ── Routing Logic ───────────────────────────────────────────────────────────
+ * 1. ALWAYS fire the Capacitor JS bridge event (SmsPlugin.onSmsReceived).
+ *    The JS hook (useSmsExpenseTracker.ts) will deduplicate and POST to backend.
+ *
+ * 2. ONLY start SmsListenerService (native fallback) when the JS bridge is
+ *    inactive (app fully backgrounded, WebView destroyed).
+ *    This prevents the double-POST that caused duplicate expense entries.
+ * ────────────────────────────────────────────────────────────────────────────
+ *
+ * Flow:
+ *   SMS arrives → onReceive() → SmsPlugin.onSmsReceived() (JS bridge)
+ *                             → SmsListenerService ONLY if JS bridge is inactive
  */
 public class SmsReceiver extends BroadcastReceiver {
 
@@ -62,16 +71,25 @@ public class SmsReceiver extends BroadcastReceiver {
 
         Log.d(TAG, "SMS received from: " + sender + " | body: " + body.substring(0, Math.min(50, body.length())) + "...");
 
-        // Pass to the Capacitor plugin for JS-side processing
-        // Store in SmsPlugin so the plugin can forward to JS
+        // ── Path 1: Capacitor JS bridge (always attempted) ───────────────────
+        // When the app is open/foregrounded, the WebView is alive and JS handles
+        // the SMS entirely — deduplication + POST to backend all happen in JS.
         SmsPlugin.onSmsReceived(sender, body, timestampMillis);
 
-        // Also start the foreground service so Android doesn't kill us
-        // before we finish posting to the backend
-        Intent serviceIntent = new Intent(context, SmsListenerService.class);
-        serviceIntent.putExtra("sender", sender);
-        serviceIntent.putExtra("body", body);
-        serviceIntent.putExtra("timestamp", timestampMillis);
-        ContextCompat.startForegroundService(context, serviceIntent);
+        // ── Path 2: Native service fallback (only when JS is inactive) ───────
+        // When the app is fully backgrounded or the WebView is destroyed,
+        // the JS bridge cannot receive the event. In that case only, we use
+        // the SmsListenerService to POST directly to the backend.
+        // This mutual exclusion eliminates the duplicate POST problem.
+        if (!SmsPlugin.isJsBridgeActive()) {
+            Log.d(TAG, "JS bridge inactive — starting SmsListenerService as fallback");
+            Intent serviceIntent = new Intent(context, SmsListenerService.class);
+            serviceIntent.putExtra("sender", sender);
+            serviceIntent.putExtra("body", body);
+            serviceIntent.putExtra("timestamp", timestampMillis);
+            ContextCompat.startForegroundService(context, serviceIntent);
+        } else {
+            Log.d(TAG, "JS bridge active — skipping SmsListenerService (JS will handle POST)");
+        }
     }
 }
