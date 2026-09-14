@@ -3,10 +3,20 @@ import json
 import logging
 import re
 
+import requests
 import yfinance as yf
 
 from app.core.llm import LLMUnavailableError, generate_response
 from app.core.redis import cache_get, cache_set
+
+def get_yf_session():
+    session = requests.Session()
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.5",
+    })
+    return session
 
 STOCK_OPERATIONS = {
     "get_quote",         # current price of a stock
@@ -190,51 +200,71 @@ User message: {message}
 
 def _fetch_quote(ticker_symbol: str) -> dict:
     """Blocking call — fetch current quote."""
-    ticker = yf.Ticker(ticker_symbol)
-    info = ticker.info
-    # Use 5d so we always have data even when market is closed
-    hist = ticker.history(period="5d", auto_adjust=True)
-    if hist.empty:
+    try:
+        session = get_yf_session()
+        ticker = yf.Ticker(ticker_symbol, session=session)
+        # Use 5d so we always have data even when market is closed
+        hist = ticker.history(period="5d", auto_adjust=True)
+        if hist.empty:
+            return {}
+        close_series = hist["Close"].dropna()
+        if close_series.empty:
+            return {}
+        current = float(close_series.iloc[-1])
+        prev = float(close_series.iloc[-2]) if len(close_series) > 1 else current
+        change = current - prev
+        change_pct = (change / prev) * 100 if prev else 0
+
+        name = ticker_symbol
+        volume = None
+        market_cap = None
+        try:
+            info = ticker.info or {}
+            name = info.get("longName") or info.get("shortName") or ticker_symbol
+            volume = info.get("volume")
+            market_cap = info.get("marketCap")
+        except Exception:
+            pass
+
+        return {
+            "symbol": ticker_symbol,
+            "name": name,
+            "price": round(current, 2),
+            "change": round(change, 2),
+            "change_pct": round(change_pct, 2),
+            "volume": volume,
+            "market_cap": market_cap,
+            "currency": "INR",
+        }
+    except Exception as exc:
+        _log.warning("yfinance fetch_quote failed for %s: %s", ticker_symbol, exc)
         return {}
-    # Drop NaN rows to get the last valid price
-    close_series = hist["Close"].dropna()
-    if close_series.empty:
-        return {}
-    current = float(close_series.iloc[-1])
-    prev = float(close_series.iloc[-2]) if len(close_series) > 1 else current
-    change = current - prev
-    change_pct = (change / prev) * 100 if prev else 0
-    return {
-        "symbol": ticker_symbol,
-        "name": info.get("longName") or info.get("shortName") or ticker_symbol,
-        "price": round(current, 2),
-        "change": round(change, 2),
-        "change_pct": round(change_pct, 2),
-        "volume": info.get("volume"),
-        "market_cap": info.get("marketCap"),
-        "currency": info.get("currency", "INR"),
-    }
 
 
 def _fetch_info(ticker_symbol: str) -> dict:
     """Blocking call — detailed fundamentals."""
-    info = yf.Ticker(ticker_symbol).info
-    return {
-        "symbol": ticker_symbol,
-        "name": info.get("longName") or ticker_symbol,
-        "sector": info.get("sector"),
-        "industry": info.get("industry"),
-        "price": info.get("currentPrice") or info.get("regularMarketPrice"),
-        "pe_ratio": info.get("trailingPE"),
-        "pb_ratio": info.get("priceToBook"),
-        "market_cap": info.get("marketCap"),
-        "52w_high": info.get("fiftyTwoWeekHigh"),
-        "52w_low": info.get("fiftyTwoWeekLow"),
-        "dividend_yield": info.get("dividendYield"),
-        "eps": info.get("trailingEps"),
-        "book_value": info.get("bookValue"),
-        "roe": info.get("returnOnEquity"),
-    }
+    try:
+        session = get_yf_session()
+        info = yf.Ticker(ticker_symbol, session=session).info or {}
+        return {
+            "symbol": ticker_symbol,
+            "name": info.get("longName") or ticker_symbol,
+            "sector": info.get("sector"),
+            "industry": info.get("industry"),
+            "price": info.get("currentPrice") or info.get("regularMarketPrice"),
+            "pe_ratio": info.get("trailingPE"),
+            "pb_ratio": info.get("priceToBook"),
+            "market_cap": info.get("marketCap"),
+            "52w_high": info.get("fiftyTwoWeekHigh"),
+            "52w_low": info.get("fiftyTwoWeekLow"),
+            "dividend_yield": info.get("dividendYield"),
+            "eps": info.get("trailingEps"),
+            "book_value": info.get("bookValue"),
+            "roe": info.get("returnOnEquity"),
+        }
+    except Exception as exc:
+        _log.warning("yfinance fetch_info failed for %s: %s", ticker_symbol, exc)
+        return {}
 
 
 def _fetch_history(ticker_symbol: str, period: str) -> list[dict]:
