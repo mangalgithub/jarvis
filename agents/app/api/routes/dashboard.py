@@ -2,6 +2,8 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
+from bson import ObjectId
+
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -362,13 +364,16 @@ async def get_daily_briefing(
     Returns the comprehensive 'Today with Jarvis' proactive daily briefing.
     Strictly cached per user per calendar day — only invokes AI once per day.
     """
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    today_str = now_local().strftime("%Y-%m-%d")
     cache_key = f"briefing:{user_id}:{today_str}"
 
     # 1. Check Redis fast cache (unless force-refreshing)
     if not force_refresh:
         cached_briefing = await cache_get(cache_key)
         if cached_briefing is not None:
+            if isinstance(cached_briefing, dict) and not cached_briefing.get("date_key"):
+                cached_briefing = {**cached_briefing, "date_key": today_str}
+                await cache_set(cache_key, cached_briefing, expire_seconds=86400)
             return cached_briefing
 
         # 2. Check MongoDB persistent daily briefings collection
@@ -379,14 +384,19 @@ async def get_daily_briefing(
             })
             if db_doc and "data" in db_doc:
                 # Re-populate Redis cache and return
-                await cache_set(cache_key, db_doc["data"], expire_seconds=86400)
-                return db_doc["data"]
+                cached_data = db_doc["data"]
+                if isinstance(cached_data, dict) and not cached_data.get("date_key"):
+                    cached_data = {**cached_data, "date_key": today_str}
+                await cache_set(cache_key, cached_data, expire_seconds=86400)
+                return cached_data
         except Exception as db_err:
             logger.warning("[dashboard] MongoDB briefing cache lookup failed: %s", db_err)
 
     # 3. Cache miss or forced refresh: generate via AI
     try:
-        user_doc = await get_collection("users").find_one({"_id": user_id})
+        user_doc = None
+        if ObjectId.is_valid(user_id):
+            user_doc = await get_collection("users").find_one({"_id": ObjectId(user_id)})
         user_name = user_doc.get("name", "User") if user_doc else "User"
 
         data = await briefing_agent.get_briefing_data(user_id=user_id, user_name=user_name)
@@ -408,5 +418,3 @@ async def get_daily_briefing(
     except Exception as exc:
         logger.error("[dashboard] get_daily_briefing failed: %s", exc, exc_info=True)
         return await briefing_agent.get_briefing_data(user_id=user_id, user_name="User")
-
-

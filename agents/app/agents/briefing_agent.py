@@ -20,6 +20,7 @@ from app.core.llm import LLMUnavailableError, generate_response
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import month_bounds, now_local
 from app.tools.reminder_tools import get_active_reminders
+from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,20 @@ def _parse_json(text: str) -> dict:
         return payload if isinstance(payload, dict) else {}
     except json.JSONDecodeError:
         return {}
+
+
+class BriefingAction(BaseModel):
+    title: str = Field(min_length=1, max_length=80)
+    description: str = Field(min_length=1, max_length=280)
+    category: str = "finance"
+    action_command: str | None = Field(default=None, max_length=240)
+
+
+class BriefingSynthesis(BaseModel):
+    greeting: str = Field(min_length=1, max_length=120)
+    headline: str = Field(min_length=1, max_length=280)
+    suggested_actions: list[BriefingAction] = Field(min_length=1, max_length=3)
+    audio_script: str = Field(min_length=1, max_length=1200)
 
 
 class BriefingAgent:
@@ -64,7 +79,7 @@ class BriefingAgent:
             f"• Forecasted Month-End: ₹{pace['forecast_month_end']:,.0f}"
             + (f" *(Budget: ₹{pace['total_budget']:,.0f})*" if pace['total_budget'] > 0 else "") + "\n\n"
             f"💧 **Health & Priorities:**\n"
-            f"• Hydration: {water.get('today', 0)} / {water.get('goal', 2500)} ml\n"
+            f"• Hydration: {water.get('today', 0)} / {water.get('goal', 8)} glasses\n"
             f"• Workout Streak: {health.get('workout_streak', 0)} days\n\n"
             f"💡 **Suggested Focus Today:**\n{actions_text}"
         )
@@ -95,6 +110,7 @@ class BriefingAgent:
             month_expenses_doc,
             month_income_doc,
             budgets_docs,
+            category_expenses_docs,
             recurring_docs,
             reminders_docs,
             health_summary,
@@ -137,6 +153,18 @@ class BriefingAgent:
             # Budgets
             get_collection("budgets").find({"user_id": user_id}).to_list(length=50),
 
+            # One grouped query replaces one database query per budget category.
+            get_collection("expenses").aggregate([
+                {"$match": {
+                    "user_id": user_id,
+                    "$or": [
+                        {"occurred_at": {"$gte": month_start, "$lte": month_end}},
+                        {"occurred_at": {"$exists": False}, "created_at": {"$gte": month_start, "$lte": month_end}},
+                    ]
+                }},
+                {"$group": {"_id": "$category", "total": {"$sum": "$amount"}}},
+            ]).to_list(length=100),
+
             # Recurring expenses
             get_collection("recurring_expenses").find({"user_id": user_id}).to_list(length=20),
 
@@ -166,23 +194,15 @@ class BriefingAgent:
 
         # Budget category warnings
         budget_warnings = []
+        category_spend = {
+            row.get("_id"): float(row.get("total", 0))
+            for row in category_expenses_docs
+        }
         for b in budgets_docs:
             cat = b.get("category", "Other")
             cat_budget = b.get("amount", 0)
             if cat_budget > 0:
-                # Category spend so far
-                cat_exp = await get_collection("expenses").aggregate([
-                    {"$match": {
-                        "user_id": user_id,
-                        "category": cat,
-                        "$or": [
-                            {"occurred_at": {"$gte": month_start, "$lte": month_end}},
-                            {"occurred_at": {"$exists": False}, "created_at": {"$gte": month_start, "$lte": month_end}},
-                        ]
-                    }},
-                    {"$group": {"_id": None, "total": {"$sum": "$amount"}}}
-                ]).to_list(length=1)
-                cat_spent = cat_exp[0]["total"] if cat_exp else 0.0
+                cat_spent = category_spend.get(cat, 0.0)
                 cat_forecast = round((cat_spent / max(day, 1)) * total_days_in_month, 2)
                 if cat_forecast > cat_budget:
                     budget_warnings.append({
@@ -194,7 +214,7 @@ class BriefingAgent:
                     })
 
         # ── 3. Deterministic Health Progress ─────────────────────────────────
-        water_data = health_summary.get("water", {"today": 0, "goal": 2500, "progress": 0}) if health_summary else {"today": 0, "goal": 2500, "progress": 0}
+        water_data = health_summary.get("water", {"today": 0, "goal": 8, "progress": 0}) if health_summary else {"today": 0, "goal": 8, "progress": 0}
         nutrition_data = health_summary.get("nutrition", {}) if health_summary else {}
         calories_data = nutrition_data.get("calories", {"today": 0, "goal": 2000})
         protein_data = nutrition_data.get("protein", {"today": 0, "goal": 120})
@@ -242,6 +262,7 @@ class BriefingAgent:
         )
 
         return {
+            "date_key": now.strftime("%Y-%m-%d"),
             "date": now.strftime("%A, %B %d, %Y"),
             "greeting": ai_synthesis.get("greeting", f"Good {greeting_time}, {user_name}!"),
             "headline": ai_synthesis.get("headline", f"Here is your daily overview for day {day} of {total_days_in_month}."),
@@ -290,7 +311,7 @@ DATA:
 - Forecasted Month-End Spend: ₹{kwargs.get('forecast_month_end')}
 - Total Monthly Budget: ₹{kwargs.get('total_monthly_budget')}
 - Category Budget Warnings: {kwargs.get('budget_warnings')}
-- Health Water: {kwargs.get('water_data')} ml
+- Health Water: {kwargs.get('water_data')} glasses
 - Health Calories: {kwargs.get('calories_data')}
 - Health Protein: {kwargs.get('protein_data')}
 - Workout Streak: {kwargs.get('workout_streak')} days
@@ -305,7 +326,7 @@ REQUIREMENTS:
    - "title": Short title (e.g., "Cap Dining Delivery", "Hydration Boost", "Review Reminders")
    - "description": Concrete advice with numbers (e.g., "You're on track to exceed food budget by ₹1,800—cook tonight or cap delivery.")
    - "category": "finance" | "health" | "schedule" | "market"
-   - "action_command": Optional prefilled Jarvis command like "I spent 0 on dinner" or "Drank 500ml water" or "Show food budget"
+   - "action_command": Optional prefilled Jarvis command like "Drank 2 glasses of water" or "Show food budget"
 4. "audio_script": A 30-second conversational voice summary for TTS read-aloud (energetic, polished, natural Jarvis tone).
 
 Return ONLY valid JSON matching this structure:
@@ -330,8 +351,8 @@ Return ONLY valid JSON matching this structure:
                 temperature=0.2,
             )
             data = _parse_json(response)
-            if data and "suggested_actions" in data:
-                return data
+            if data:
+                return BriefingSynthesis.model_validate(data).model_dump()
         except Exception as exc:
             logger.warning("[BriefingAgent] AI synthesis failed: %s", exc)
 

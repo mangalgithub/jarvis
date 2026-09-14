@@ -17,12 +17,8 @@ export function useDailyBriefingNotification({
     if (typeof window === "undefined" || initialized.current) return;
     initialized.current = true;
 
-    // Check notification permission
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission().catch(() => {});
-    }
-
     const checkAndTriggerMorningNotification = () => {
+      if (localStorage.getItem("jarvis_briefing_notifications_enabled") !== "true") return;
       const now = new Date();
       const todayDateStr = now.toISOString().split("T")[0];
       const lastShownDate = localStorage.getItem("jarvis_last_briefing_notification_date");

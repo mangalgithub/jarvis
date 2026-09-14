@@ -18,7 +18,7 @@ function isNative(): boolean {
   );
 }
 
-export function DailyBriefingCard() {
+export function DailyBriefingCard({ showCard = true }: { showCard?: boolean }) {
   const {
     briefing,
     isBriefingLoading,
@@ -95,7 +95,7 @@ export function DailyBriefingCard() {
   };
 
   // ── Loading skeleton ──────────────────────────────────────────────────
-  if (!briefing && isBriefingLoading) {
+  if (!briefing && isBriefingLoading && showCard) {
     return (
       <div className="rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/40 via-slate-900/60 to-slate-950/80 p-5 shadow-2xl backdrop-blur-xl animate-pulse">
         <div className="flex items-center gap-3 flex-wrap">
@@ -113,7 +113,7 @@ export function DailyBriefingCard() {
   const pace = briefing.finance_pace;
   const health = briefing.health_progress;
 
-  const waterPct  = Math.min(Math.round(((health.water.today    || 0) / (health.water.goal    || 2500)) * 100), 100);
+  const waterPct  = Math.min(Math.round(((health.water.today    || 0) / (health.water.goal    || 8)) * 100), 100);
   const calPct    = Math.min(Math.round(((health.calories.today  || 0) / (health.calories.goal  || 2000)) * 100), 100);
   const proteinPct= Math.min(Math.round(((health.protein.today   || 0) / (health.protein.goal   || 120 )) * 100), 100);
   const budgetPct = pace.total_budget > 0
@@ -123,7 +123,7 @@ export function DailyBriefingCard() {
   return (
     <>
       {/* ── Hero Card ─────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-[24px] border border-cyan-500/30 bg-gradient-to-br from-slate-900/90 via-slate-900/95 to-slate-950 p-4 sm:p-6 shadow-2xl backdrop-blur-xl">
+      {showCard && <div className="relative overflow-hidden rounded-[24px] border border-cyan-500/30 bg-gradient-to-br from-slate-900/90 via-slate-900/95 to-slate-950 p-4 sm:p-6 shadow-2xl backdrop-blur-xl">
         {/* Ambient glow */}
         <div className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-cyan-500/10 blur-3xl" />
         <div className="pointer-events-none absolute -left-16 -bottom-16 h-48 w-48 rounded-full bg-blue-600/10 blur-3xl" />
@@ -218,7 +218,7 @@ export function DailyBriefingCard() {
             </div>
             <div className="mt-2 grid grid-cols-3 gap-2 text-center">
               {[
-                { label: "Water", value: `${health.water.today}ml`, pct: waterPct, color: "bg-cyan-400" },
+                { label: "Water", value: `${health.water.today || 0} gl`, pct: waterPct, color: "bg-cyan-400" },
                 { label: "Cal", value: `${health.calories.today || 0}`, pct: calPct, color: "bg-emerald-400" },
                 { label: "Protein", value: `${health.protein.today || 0}g`, pct: proteinPct, color: "bg-purple-400" },
               ].map(({ label, value, pct, color }) => (
@@ -291,7 +291,7 @@ export function DailyBriefingCard() {
         <p className="mt-3 text-[9px] text-slate-600 text-right">
           Cached for today · tap 🔄 to refresh
         </p>
-      </div>
+      </div>}
 
       {/* ── Full Briefing Modal ─────────────────────────────────────────── */}
       {isBriefingModalOpen && (
@@ -349,7 +349,7 @@ export function DailyBriefingCard() {
                 <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-3">Health Goals</p>
                 <div className="grid grid-cols-3 gap-3 text-xs">
                   {[
-                    { label: "Water", val: `${health.water.today} / ${health.water.goal} ml`, pct: waterPct, color: "bg-cyan-400" },
+                    { label: "Water", val: `${health.water.today || 0} / ${health.water.goal || 8} glasses`, pct: waterPct, color: "bg-cyan-400" },
                     { label: "Calories", val: `${health.calories.today || 0} / ${health.calories.goal || 2000}`, pct: calPct, color: "bg-emerald-400" },
                     { label: "Protein", val: `${health.protein.today || 0} / ${health.protein.goal || 120}g`, pct: proteinPct, color: "bg-purple-400" },
                   ].map(({ label, val, pct, color }) => (

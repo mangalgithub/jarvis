@@ -7,6 +7,7 @@ import { DashboardProvider } from "@/context/DashboardContext";
 import Sidebar from "@/components/nav/Sidebar";
 import MobileNav from "@/components/nav/MobileNav";
 import MobileHeader from "@/components/nav/MobileHeader";
+import { DailyBriefingCard } from "@/components/dashboard/DailyBriefingCard";
 import { usePathname } from "next/navigation";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className={!isAuthPage ? "lg:pl-64 pt-0 pb-20 lg:pb-0" : ""}>
             {children}
           </main>
+          {!isAuthPage && <DailyBriefingCard showCard={pathname === "/"} />}
           {!isAuthPage && <MobileNav />}
         </DashboardProvider>
         <Analytics />

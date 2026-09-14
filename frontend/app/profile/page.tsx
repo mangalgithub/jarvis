@@ -1,11 +1,36 @@
 "use client";
 
 import { useDashboard } from "@/context/DashboardContext";
+import { useEffect, useState } from "react";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
 
 export default function ProfilePage() {
   const { dashboard, sendMessage } = useDashboard();
+  const [briefingNotificationsEnabled, setBriefingNotificationsEnabled] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState("");
+
+  useEffect(() => {
+    setBriefingNotificationsEnabled(localStorage.getItem("jarvis_briefing_notifications_enabled") === "true");
+  }, []);
+
+  const toggleBriefingNotifications = async () => {
+    if (!briefingNotificationsEnabled && !("Notification" in window)) {
+      setNotificationMessage("Notifications are not available on this device yet.");
+      return;
+    }
+    if (!briefingNotificationsEnabled) {
+      const permission = await Notification.requestPermission();
+      if (permission !== "granted") {
+        setNotificationMessage("Notification permission was not granted.");
+        return;
+      }
+    }
+    const next = !briefingNotificationsEnabled;
+    localStorage.setItem("jarvis_briefing_notifications_enabled", String(next));
+    setBriefingNotificationsEnabled(next);
+    setNotificationMessage(next ? "Morning browser reminders enabled." : "Morning browser reminders disabled.");
+  };
   const memory = dashboard?.memory;
 
   if (!memory) {
@@ -33,6 +58,22 @@ export default function ProfilePage() {
           🔍 Refresh Intelligence
         </button>
       </div>
+
+      <PanelCard className="mt-8">
+        <SectionTitle title="Daily Briefing" />
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            Enable a morning reminder in browsers that support notifications. The briefing itself works in both the browser and Android app.
+          </p>
+          <button
+            onClick={() => void toggleBriefingNotifications()}
+            className="shrink-0 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-cyan-500"
+          >
+            {briefingNotificationsEnabled ? "Disable reminder" : "Enable reminder"}
+          </button>
+        </div>
+        {notificationMessage && <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">{notificationMessage}</p>}
+      </PanelCard>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {Object.entries(memory.categories).length === 0 ? (

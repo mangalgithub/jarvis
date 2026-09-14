@@ -2,7 +2,6 @@
 
 import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard } from "@/components/dashboard/PanelCard";
-import { DailyBriefingCard } from "@/components/dashboard/DailyBriefingCard";
 import { useDailyBriefingNotification } from "@/hooks/useDailyBriefingNotification";
 import { money, shortDate } from "@/lib/utils";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
@@ -98,9 +97,6 @@ export default function Home() {
           </div>
         )}
       </header>
-
-      {/* Standout Proactive Daily Briefing */}
-      <DailyBriefingCard />
 
       {/* Main Chat Area */}
       <div className="flex flex-col h-[580px] sm:h-[640px] bg-white/50 backdrop-blur-md rounded-[32px] border border-slate-200/50 shadow-2xl dark:bg-slate-900/50 dark:border-white/5 overflow-hidden">

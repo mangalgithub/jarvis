@@ -156,6 +156,7 @@ export type SuggestedAction = {
 };
 
 export type DailyBriefingData = {
+  date_key: string;
   date: string;
   greeting: string;
   headline: string;
@@ -468,21 +469,28 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   };
 
   // ── Daily Briefing: fetch once per day, cache in localStorage ─────────
-  const BRIEFING_CACHE_KEY = "jarvis_briefing_cache";
+  const getTodayKey = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  };
 
-  const getTodayKey = () => new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+  const getBriefingCacheKey = () => {
+    const userId = localStorage.getItem("jarvis_user_id");
+    return userId ? `jarvis_briefing_cache:${userId}` : null;
+  };
 
   const loadBriefing = useCallback(async (forceRefresh = false) => {
     const token = localStorage.getItem("jarvis_token");
     if (!token) return;
+    const cacheKey = getBriefingCacheKey();
 
     // Check localStorage cache first (unless force-refreshing)
     if (!forceRefresh) {
       try {
-        const cached = localStorage.getItem(BRIEFING_CACHE_KEY);
+        const cached = cacheKey ? localStorage.getItem(cacheKey) : null;
         if (cached) {
           const { date, data } = JSON.parse(cached) as { date: string; data: DailyBriefingData };
-          if (date === getTodayKey() && data) {
+          if (date === getTodayKey() && data && data.date_key === date) {
             // Cache hit — use it, no API call needed
             setBriefing(data);
             return;
@@ -503,10 +511,9 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       const data = await res.json() as DailyBriefingData;
       setBriefing(data);
       // Persist to localStorage with today's date key
-      localStorage.setItem(
-        BRIEFING_CACHE_KEY,
-        JSON.stringify({ date: getTodayKey(), data })
-      );
+      if (cacheKey) {
+        localStorage.setItem(cacheKey, JSON.stringify({ date: data.date_key || getTodayKey(), data }));
+      }
     } catch {
       // Briefing load failed gracefully
     } finally {

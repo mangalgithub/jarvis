@@ -42,6 +42,7 @@ async def create_mongodb_indexes():
 
         ("reminders", [("status", 1), ("execute_at", 1)], {"name": "idx_reminders_status_execute_at"}),
         ("reminders", [("user_id", 1), ("status", 1), ("execute_at", 1)], {"name": "idx_reminders_user_status_execute_at"}),
+        ("daily_briefings", [("user_id", 1), ("date", 1)], {"unique": True, "name": "uniq_daily_briefing_user_date"}),
     ]
 
     for collection_name, keys, options in index_specs:
