@@ -102,6 +102,9 @@ async function getBriefingFromAgent({ userId, authHeader, forceRefresh = false }
     throw err;
   }
 
+  return response.json();
+}
+
 async function deduplicateExpensesInAgent({ authHeader }) {
   const headers = {};
   if (authHeader) headers["Authorization"] = authHeader;
