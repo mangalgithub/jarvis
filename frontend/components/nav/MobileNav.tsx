@@ -24,14 +24,14 @@ export default function MobileNav() {
             <Link
               key={item.path}
               href={item.path}
-              className={`flex flex-col items-center p-2 rounded-2xl transition-all ${
+              className={`flex flex-col items-center px-1.5 py-1 sm:px-2 sm:py-1.5 rounded-xl transition-all ${
                 isActive 
-                  ? "text-cyan-600 dark:text-cyan-400 scale-110" 
+                  ? "text-cyan-600 dark:text-cyan-400 scale-105" 
                   : "text-slate-500 dark:text-slate-500"
               }`}
             >
-              <span className="text-xl">{item.icon}</span>
-              <span className="text-[10px] font-bold uppercase mt-1">{item.name}</span>
+              <span className="text-lg sm:text-xl">{item.icon}</span>
+              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-tight mt-0.5 whitespace-nowrap">{item.name}</span>
             </Link>
           );
         })}

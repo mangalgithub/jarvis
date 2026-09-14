@@ -276,3 +276,53 @@ class SmsExpenseAgent:
                 doc["updated_at"] = doc["updated_at"].isoformat()
             result.append(doc)
         return result
+
+    async def deduplicate_expenses(self, user_id: str) -> dict:
+        """Find and remove all duplicate expenses for a user, keeping only 1 copy."""
+        collection = get_collection("expenses")
+        cursor = collection.find({"user_id": user_id}).sort([("created_at", 1), ("_id", 1)])
+        all_expenses = await cursor.to_list(length=10000)
+
+        seen_refs = set()
+        seen_signatures = set()
+        duplicate_ids = []
+
+        for doc in all_expenses:
+            doc_id = doc["_id"]
+            sms_meta = doc.get("sms_metadata") if isinstance(doc.get("sms_metadata"), dict) else {}
+            ref_id = sms_meta.get("reference_id")
+            
+            occurred = doc.get("occurred_at") or doc.get("created_at")
+            date_str = occurred.strftime("%Y-%m-%d") if hasattr(occurred, "strftime") else str(occurred)[:10]
+            amount = round(float(doc.get("amount", 0)), 2)
+            desc = str(doc.get("description", "")).strip().lower()
+            
+            sig = (amount, desc, date_str)
+            is_dup = False
+
+            if ref_id and ref_id.strip():
+                if ref_id.strip() in seen_refs:
+                    is_dup = True
+                else:
+                    seen_refs.add(ref_id.strip())
+
+            if not is_dup:
+                if sig in seen_signatures:
+                    is_dup = True
+                else:
+                    seen_signatures.add(sig)
+
+            if is_dup:
+                duplicate_ids.append(doc_id)
+
+        deleted_count = 0
+        if duplicate_ids:
+            res = await collection.delete_many({"_id": {"$in": duplicate_ids}})
+            deleted_count = res.deleted_count
+
+        return {
+            "success": True,
+            "deleted_count": deleted_count,
+            "message": f"Cleaned {deleted_count} duplicate expense{'s' if deleted_count != 1 else ''}.",
+        }
+

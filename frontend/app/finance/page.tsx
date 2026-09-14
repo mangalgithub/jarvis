@@ -1,11 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import { useDashboard } from "@/context/DashboardContext";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 import { AnalyticsChart } from "@/components/dashboard/AnalyticsChart";
 import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
 import { money, shortDate } from "@/lib/utils";
+import { API_BASE_URL } from "@/lib/apiConfig";
 import { Card } from "@heroui/react";
 
 // ─── Category emoji map ───────────────────────────────────────────────────────
@@ -31,9 +33,37 @@ const CATEGORY_EMOJI: Record<string, string> = {
 export default function FinancePage() {
   const {
     dashboard, dateRange, setDateRange, category, setCategory,
-    sendMessage, smsExpenses, lastSmsExpense,
+    sendMessage, smsExpenses, lastSmsExpense, loadDashboard,
   } = useDashboard();
   const finance = dashboard?.finance;
+
+  const [isDeduplicating, setIsDeduplicating] = useState(false);
+  const [dedupMessage, setDedupMessage] = useState<string | null>(null);
+
+  const handleCleanDuplicates = async () => {
+    setIsDeduplicating(true);
+    setDedupMessage(null);
+    try {
+      const token = localStorage.getItem("jarvis_token");
+      const res = await fetch(`${API_BASE_URL}/api/expenses/deduplicate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await res.json();
+      if (data.message) {
+        setDedupMessage(data.message);
+        setTimeout(() => setDedupMessage(null), 4000);
+      }
+      await loadDashboard();
+    } catch (err) {
+      console.error("Deduplication error:", err);
+    } finally {
+      setIsDeduplicating(false);
+    }
+  };
 
   if (!finance) {
     return <DashboardLoader label="Loading finance data..." />;
@@ -86,7 +116,16 @@ export default function FinancePage() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            onClick={handleCleanDuplicates}
+            disabled={isDeduplicating}
+            className="flex items-center gap-1.5 rounded-xl border border-cyan-500/30 bg-cyan-500/10 px-3.5 py-2 text-xs font-bold text-cyan-600 hover:bg-cyan-500/20 active:scale-95 transition disabled:opacity-50 dark:text-cyan-400"
+            title="Scan and remove duplicate entries with matching reference ID or details"
+          >
+            <span>🧹</span>
+            <span>{isDeduplicating ? "Cleaning..." : "Clean Duplicates"}</span>
+          </button>
           <select
             value={dateRange}
             onChange={(e) => setDateRange(e.target.value)}
@@ -107,6 +146,14 @@ export default function FinancePage() {
           </select>
         </div>
       </div>
+
+      {/* Deduplication toast banner */}
+      {dedupMessage && (
+        <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-xs font-bold text-emerald-600 dark:text-emerald-400 transition animate-in fade-in">
+          ✨ {dedupMessage}
+        </div>
+      )}
+
 
       {/* Metrics Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -318,7 +365,7 @@ export default function FinancePage() {
                     </p>
                     <button
                       onClick={() => sendMessage(`delete expense id ${exp._id}`)}
-                      className="mt-1 text-[10px] text-rose-400 opacity-0 transition-opacity group-hover:opacity-100 hover:underline"
+                      className="mt-1 text-[10px] font-medium text-rose-500 hover:text-rose-600 dark:text-rose-400 hover:underline"
                     >
                       Delete
                     </button>

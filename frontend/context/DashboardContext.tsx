@@ -226,7 +226,7 @@ interface DashboardContextType {
   // Daily Briefing
   briefing: DailyBriefingData | null;
   isBriefingLoading: boolean;
-  loadBriefing: () => Promise<void>;
+  loadBriefing: (forceRefresh?: boolean) => Promise<void>;
   isBriefingModalOpen: boolean;
   setIsBriefingModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -467,18 +467,46 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setLiveReminders(prev => prev.filter(r => r._id !== reminder._id));
   };
 
-  // ── Fetch Daily Briefing from backend ──────────────────────────────────
-  const loadBriefing = useCallback(async () => {
+  // ── Daily Briefing: fetch once per day, cache in localStorage ─────────
+  const BRIEFING_CACHE_KEY = "jarvis_briefing_cache";
+
+  const getTodayKey = () => new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+
+  const loadBriefing = useCallback(async (forceRefresh = false) => {
     const token = localStorage.getItem("jarvis_token");
     if (!token) return;
-    setIsBriefingLoading(true);
+
+    // Check localStorage cache first (unless force-refreshing)
+    if (!forceRefresh) {
+      try {
+        const cached = localStorage.getItem(BRIEFING_CACHE_KEY);
+        if (cached) {
+          const { date, data } = JSON.parse(cached) as { date: string; data: DailyBriefingData };
+          if (date === getTodayKey() && data) {
+            // Cache hit — use it, no API call needed
+            setBriefing(data);
+            return;
+          }
+        }
+      } catch {
+        // Corrupted cache — continue to fetch
+      }
+    }
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/briefing`, {
+      setIsBriefingLoading(true);
+      const url = `${API_BASE_URL}/api/briefing${forceRefresh ? "?forceRefresh=true" : ""}`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
       const data = await res.json() as DailyBriefingData;
       setBriefing(data);
+      // Persist to localStorage with today's date key
+      localStorage.setItem(
+        BRIEFING_CACHE_KEY,
+        JSON.stringify({ date: getTodayKey(), data })
+      );
     } catch {
       // Briefing load failed gracefully
     } finally {

@@ -341,26 +341,72 @@ async def get_sms_expenses(
     return {"expenses": expenses, "count": len(expenses)}
 
 
+@router.post("/expenses/deduplicate")
+async def deduplicate_user_expenses(
+    user_id: str = Depends(verify_token),
+):
+    """
+    Finds and deletes all duplicate expense records for the current user.
+    """
+    result = await sms_expense_agent.deduplicate_expenses(user_id=user_id)
+    return result
+
+
+
 @router.get("/briefing")
 async def get_daily_briefing(
+    force_refresh: bool = False,
     user_id: str = Depends(verify_token),
 ):
     """
     Returns the comprehensive 'Today with Jarvis' proactive daily briefing.
+    Strictly cached per user per calendar day — only invokes AI once per day.
     """
-    try:
-        user_doc = await get_collection("users").find_one({"_id": user_id})
-        user_name = user_doc.get("name", "User") if user_doc else "User"
+    today_str = datetime.now().strftime("%Y-%m-%d")
+    cache_key = f"briefing:{user_id}:{today_str}"
 
-        cache_key = f"briefing:{user_id}"
+    # 1. Check Redis fast cache (unless force-refreshing)
+    if not force_refresh:
         cached_briefing = await cache_get(cache_key)
         if cached_briefing is not None:
             return cached_briefing
 
+        # 2. Check MongoDB persistent daily briefings collection
+        try:
+            db_doc = await get_collection("daily_briefings").find_one({
+                "user_id": user_id,
+                "date": today_str,
+            })
+            if db_doc and "data" in db_doc:
+                # Re-populate Redis cache and return
+                await cache_set(cache_key, db_doc["data"], expire_seconds=86400)
+                return db_doc["data"]
+        except Exception as db_err:
+            logger.warning("[dashboard] MongoDB briefing cache lookup failed: %s", db_err)
+
+    # 3. Cache miss or forced refresh: generate via AI
+    try:
+        user_doc = await get_collection("users").find_one({"_id": user_id})
+        user_name = user_doc.get("name", "User") if user_doc else "User"
+
         data = await briefing_agent.get_briefing_data(user_id=user_id, user_name=user_name)
-        await cache_set(cache_key, data, expire_seconds=300)
+        
+        # 4. Save to Redis (24h)
+        await cache_set(cache_key, data, expire_seconds=86400)
+
+        # 5. Persist to MongoDB so cache survives server restarts
+        try:
+            await get_collection("daily_briefings").update_one(
+                {"user_id": user_id, "date": today_str},
+                {"$set": {"user_id": user_id, "date": today_str, "data": data, "updated_at": datetime.now(timezone.utc)}},
+                upsert=True,
+            )
+        except Exception as db_save_err:
+            logger.warning("[dashboard] MongoDB briefing cache save failed: %s", db_save_err)
+
         return data
     except Exception as exc:
         logger.error("[dashboard] get_daily_briefing failed: %s", exc, exc_info=True)
         return await briefing_agent.get_briefing_data(user_id=user_id, user_name="User")
+
 

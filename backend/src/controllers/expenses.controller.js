@@ -1,4 +1,4 @@
-const { ingestSmsExpense, getSmsExpenses } = require("../services/agent.service");
+const { ingestSmsExpense, getSmsExpenses, deduplicateExpensesInAgent } = require("../services/agent.service");
 
 async function postSmsExpense(req, res, next) {
   try {
@@ -38,7 +38,19 @@ async function getSmsExpensesController(req, res, next) {
   }
 }
 
+async function deduplicateExpensesController(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    const result = await deduplicateExpensesInAgent({ authHeader });
+    return res.json(result);
+  } catch (error) {
+    return next(error);
+  }
+}
+
 module.exports = {
   postSmsExpense,
   getSmsExpensesController,
+  deduplicateExpensesController,
 };
+

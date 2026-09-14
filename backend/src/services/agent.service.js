@@ -87,16 +87,32 @@ async function getSmsExpenses({ limit, authHeader }) {
   return response.json();
 }
 
-async function getBriefingFromAgent({ userId, authHeader }) {
+async function getBriefingFromAgent({ userId, authHeader, forceRefresh = false }) {
   const headers = {};
   if (authHeader) headers["Authorization"] = authHeader;
 
-  const response = await fetch(`${AGENT_SERVICE_URL}/agent/briefing`, {
+  const url = `${AGENT_SERVICE_URL}/agent/briefing${forceRefresh ? "?force_refresh=true" : ""}`;
+  const response = await fetch(url, {
     headers,
   });
 
   if (!response.ok) {
     const err = new Error(`Agent briefing failed with status ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+
+async function deduplicateExpensesInAgent({ authHeader }) {
+  const headers = {};
+  if (authHeader) headers["Authorization"] = authHeader;
+
+  const response = await fetch(`${AGENT_SERVICE_URL}/agent/expenses/deduplicate`, {
+    method: "POST",
+    headers,
+  });
+
+  if (!response.ok) {
+    const err = new Error(`Agent deduplication failed with status ${response.status}`);
     err.status = response.status;
     throw err;
   }
@@ -110,4 +126,6 @@ module.exports = {
   ingestSmsExpense,
   getSmsExpenses,
   getBriefingFromAgent,
+  deduplicateExpensesInAgent,
 };
+
