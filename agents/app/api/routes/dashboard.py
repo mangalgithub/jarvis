@@ -13,6 +13,7 @@ from app.agents.news_agent import NewsAgent
 from app.agents.memory_agent import MemoryAgent
 from app.agents.stock_agent import StockAgent
 from app.agents.sms_expense_agent import SmsExpenseAgent
+from app.agents.briefing_agent import BriefingAgent
 from app.tools.reminder_tools import get_active_reminders
 from app.core.mongodb import get_collection
 from app.tools.finance_tools import month_bounds, now_local, resolve_date_range
@@ -23,6 +24,7 @@ health_agent = HealthAgent()
 memory_agent = MemoryAgent()
 stock_agent = StockAgent()
 sms_expense_agent = SmsExpenseAgent()
+briefing_agent = BriefingAgent()
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +105,7 @@ async def category_breakdown(user_id: str, start, end, category: str | None = No
 async def recent_expenses(user_id: str, start, end, category: str | None = None):
     documents = await get_collection("expenses").find(
         expense_match(user_id, start, end, category)
-    ).sort("created_at", -1).to_list(length=8)
+    ).sort([("occurred_at", -1), ("created_at", -1), ("_id", -1)]).to_list(length=15)
     return [serialize_document(document) for document in documents]
 
 
@@ -337,3 +339,28 @@ async def get_sms_expenses(
     """
     expenses = await sms_expense_agent.get_sms_expenses(user_id=user_id, limit=limit)
     return {"expenses": expenses, "count": len(expenses)}
+
+
+@router.get("/briefing")
+async def get_daily_briefing(
+    user_id: str = Depends(verify_token),
+):
+    """
+    Returns the comprehensive 'Today with Jarvis' proactive daily briefing.
+    """
+    try:
+        user_doc = await get_collection("users").find_one({"_id": user_id})
+        user_name = user_doc.get("name", "User") if user_doc else "User"
+
+        cache_key = f"briefing:{user_id}"
+        cached_briefing = await cache_get(cache_key)
+        if cached_briefing is not None:
+            return cached_briefing
+
+        data = await briefing_agent.get_briefing_data(user_id=user_id, user_name=user_name)
+        await cache_set(cache_key, data, expire_seconds=300)
+        return data
+    except Exception as exc:
+        logger.error("[dashboard] get_daily_briefing failed: %s", exc, exc_info=True)
+        return await briefing_agent.get_briefing_data(user_id=user_id, user_name="User")
+

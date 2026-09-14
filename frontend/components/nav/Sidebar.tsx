@@ -16,7 +16,7 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { userName, isDarkMode, toggleDarkMode } = useDashboard();
+  const { userName, isDarkMode, toggleDarkMode, setIsBriefingModalOpen } = useDashboard();
 
   const handleLogout = () => {
     localStorage.clear();
@@ -38,9 +38,26 @@ export default function Sidebar() {
         </div>
 
         {/* User Info */}
-        <div className="mb-8 rounded-2xl bg-slate-100/50 p-4 dark:bg-white/5">
+        <div className="mb-4 rounded-2xl bg-slate-100/50 p-4 dark:bg-white/5">
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">Welcome back,</p>
           <p className="text-sm font-bold text-slate-950 dark:text-white">{userName}</p>
+        </div>
+
+        {/* Daily Briefing Quick Launcher */}
+        <div className="mb-6">
+          <button
+            onClick={() => setIsBriefingModalOpen(true)}
+            className="group flex w-full items-center justify-between rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10 p-3.5 text-left transition-all hover:border-cyan-400/60 hover:from-cyan-500/20 hover:to-purple-500/20 active:scale-98 dark:border-cyan-400/20"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">🌅</span>
+              <div>
+                <p className="text-xs font-bold text-slate-900 dark:text-white">Daily Briefing</p>
+                <p className="text-[10px] text-cyan-600 dark:text-cyan-400 font-medium">Today with Jarvis</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400 group-hover:translate-x-0.5 transition-transform">→</span>
+          </button>
         </div>
 
         {/* Nav Links */}

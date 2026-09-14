@@ -148,6 +148,55 @@ export type DashboardResponse = {
   reminders: Reminder[];
 };
 
+export type SuggestedAction = {
+  title: string;
+  description: string;
+  category: "finance" | "health" | "schedule" | "market" | string;
+  action_command?: string;
+};
+
+export type DailyBriefingData = {
+  date: string;
+  greeting: string;
+  headline: string;
+  audio_script: string;
+  suggested_actions: SuggestedAction[];
+  finance_pace: {
+    day_of_month: number;
+    total_days: number;
+    days_remaining: number;
+    today_spent: number;
+    month_spent: number;
+    daily_burn_rate: number;
+    forecast_month_end: number;
+    total_budget: number;
+    budget_variance: number;
+    is_over_budget_projected: boolean;
+    budget_warnings: Array<{
+      category: string;
+      budget: number;
+      spent: number;
+      forecast: number;
+      overage: number;
+    }>;
+  };
+  health_progress: {
+    water: { today: number; goal: number; progress?: number };
+    calories: { today: number; goal: number };
+    protein: { today: number; goal: number };
+    workout_streak: number;
+  };
+  schedule_alerts: {
+    reminders: Array<{ _id: string; task: string; execute_at?: string }>;
+    recurring_bills: Array<{ description: string; amount: number; category: string }>;
+    reminders_count: number;
+  };
+  market_news: {
+    market?: { name?: string; price?: number; change?: number; change_pct?: number } | null;
+    news?: { title?: string; source?: string } | null;
+  };
+};
+
 interface DashboardContextType {
   messages: Message[];
   setMessages: React.Dispatch<React.SetStateAction<Message[]>>;
@@ -174,6 +223,12 @@ interface DashboardContextType {
   smsExpenses: Expense[];
   smsTrackingActive: boolean;
   lastSmsExpense: { amount: number; description: string; category: string; bank: string } | null;
+  // Daily Briefing
+  briefing: DailyBriefingData | null;
+  isBriefingLoading: boolean;
+  loadBriefing: () => Promise<void>;
+  isBriefingModalOpen: boolean;
+  setIsBriefingModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 
@@ -204,6 +259,10 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
   const [smsExpenses, setSmsExpenses] = useState<Expense[]>([]);
   const [smsTrackingActive, setSmsTrackingActive] = useState(false);
   const [lastSmsExpense, setLastSmsExpense] = useState<{ amount: number; description: string; category: string; bank: string } | null>(null);
+  // Daily Briefing state
+  const [briefing, setBriefing] = useState<DailyBriefingData | null>(null);
+  const [isBriefingLoading, setIsBriefingLoading] = useState(false);
+  const [isBriefingModalOpen, setIsBriefingModalOpen] = useState(false);
 
   // Initialize theme
   useEffect(() => {
@@ -293,7 +352,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       });
       if (!res.ok) return;
       const data = await res.json() as { expenses: Expense[]; count: number };
-      setSmsExpenses(data.expenses || []);
+      const sorted = (data.expenses || []).sort((a, b) => {
+        const timeA = new Date(a.occurred_at || a.created_at || 0).getTime();
+        const timeB = new Date(b.occurred_at || b.created_at || 0).getTime();
+        return timeB - timeA;
+      });
+      setSmsExpenses(sorted);
       setSmsTrackingActive(true);
     } catch {
       // SMS expenses are optional — don't break the app
@@ -403,6 +467,29 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     setLiveReminders(prev => prev.filter(r => r._id !== reminder._id));
   };
 
+  // ── Fetch Daily Briefing from backend ──────────────────────────────────
+  const loadBriefing = useCallback(async () => {
+    const token = localStorage.getItem("jarvis_token");
+    if (!token) return;
+    setIsBriefingLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/briefing`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json() as DailyBriefingData;
+      setBriefing(data);
+    } catch {
+      // Briefing load failed gracefully
+    } finally {
+      setIsBriefingLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBriefing();
+  }, [loadBriefing]);
+
   return (
     <DashboardContext.Provider value={{
       messages, setMessages,
@@ -425,6 +512,12 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       smsExpenses,
       smsTrackingActive,
       lastSmsExpense,
+      // Daily Briefing
+      briefing,
+      isBriefingLoading,
+      loadBriefing,
+      isBriefingModalOpen,
+      setIsBriefingModalOpen,
     }}>
       {children}
     </DashboardContext.Provider>

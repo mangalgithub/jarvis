@@ -2,18 +2,19 @@
 
 import { useDashboard } from "@/context/DashboardContext";
 import { PanelCard } from "@/components/dashboard/PanelCard";
+import { DailyBriefingCard } from "@/components/dashboard/DailyBriefingCard";
+import { useDailyBriefingNotification } from "@/hooks/useDailyBriefingNotification";
 import { money, shortDate } from "@/lib/utils";
 import { useSpeechToText } from "@/hooks/useSpeechToText";
 import { useEffect, useRef, useState } from "react";
 
 const starterPrompts = [
+  "Brief me on today",
   "I spent 250 on lunch by UPI",
   "Set food budget 5000 per month",
   "Drank 2 glasses of water",
-  "Remember I am vegetarian",
   "Nifty 50 today",
   "Reliance stock price",
-  "Roadmap to learn Python",
   "Remind me to check emails at 5pm",
 ];
 
@@ -27,8 +28,15 @@ export default function Home() {
     sendMessage,
     liveReminders,
     acknowledgeReminder,
-    userName
+    userName,
+    setIsBriefingModalOpen,
   } = useDashboard();
+
+  // Initialize automated morning notification
+  useDailyBriefingNotification({
+    onOpenBriefing: () => setIsBriefingModalOpen(true),
+    userName,
+  });
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,15 +80,15 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col h-screen max-w-[1200px] mx-auto p-4 sm:p-6 lg:p-8">
+    <div className="flex flex-col min-h-screen max-w-[1200px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-16">
       {/* Header */}
-      <header className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">Command Center</p>
           <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Hello, {userName}</h1>
         </div>
         {liveReminders.length > 0 && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {liveReminders.map(r => (
               <div key={r._id} className="animate-bounce flex items-center gap-2 rounded-full bg-amber-100 px-4 py-2 text-xs font-bold text-amber-700 dark:bg-amber-500/20 dark:text-amber-400 border border-amber-200 dark:border-amber-500/30">
                 🔔 {r.task}
@@ -91,8 +99,11 @@ export default function Home() {
         )}
       </header>
 
+      {/* Standout Proactive Daily Briefing */}
+      <DailyBriefingCard />
+
       {/* Main Chat Area */}
-      <div className="flex-1 flex flex-col min-h-0 bg-white/50 backdrop-blur-md rounded-[32px] border border-slate-200/50 shadow-2xl dark:bg-slate-900/50 dark:border-white/5 overflow-hidden">
+      <div className="flex flex-col h-[580px] sm:h-[640px] bg-white/50 backdrop-blur-md rounded-[32px] border border-slate-200/50 shadow-2xl dark:bg-slate-900/50 dark:border-white/5 overflow-hidden">
         {/* Messages */}
         <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
           {messages.map((msg, i) => (

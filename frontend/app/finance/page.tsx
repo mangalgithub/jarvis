@@ -44,6 +44,18 @@ export default function FinancePage() {
     1
   );
 
+  const sortedRecentExpenses = [...(finance.recentExpenses || [])].sort((a, b) => {
+    const timeA = new Date(a.occurred_at || a.created_at || 0).getTime();
+    const timeB = new Date(b.occurred_at || b.created_at || 0).getTime();
+    return timeB - timeA;
+  });
+
+  const sortedSmsExpenses = [...(smsExpenses || [])].sort((a, b) => {
+    const timeA = new Date(a.occurred_at || a.created_at || 0).getTime();
+    const timeB = new Date(b.occurred_at || b.created_at || 0).getTime();
+    return timeB - timeA;
+  });
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-[1400px] mx-auto">
 
@@ -218,10 +230,10 @@ export default function FinancePage() {
         <PanelCard className="xl:col-span-1">
           <SectionTitle title="Recent Expenses" />
           <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1 custom-scrollbar">
-            {finance.recentExpenses.length === 0 ? (
+            {sortedRecentExpenses.length === 0 ? (
               <p className="text-sm text-slate-500">No recent expenses.</p>
             ) : (
-              finance.recentExpenses.map((exp) => (
+              sortedRecentExpenses.map((exp) => (
                 <div key={exp._id} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3 dark:bg-white/5">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold text-slate-900 dark:text-white">{exp.description}</p>
@@ -246,12 +258,12 @@ export default function FinancePage() {
       </div>
 
       {/* ── SMS Auto-tracked Expenses ───────────────────────────────────── */}
-      {smsExpenses.length > 0 && (
+      {sortedSmsExpenses.length > 0 && (
         <PanelCard>
           <div className="flex items-center justify-between mb-4">
             <SectionTitle
               title="Auto-tracked (SMS)"
-              subtitle={`${smsExpenses.length} expense${smsExpenses.length !== 1 ? "s" : ""} detected automatically`}
+              subtitle={`${sortedSmsExpenses.length} expense${sortedSmsExpenses.length !== 1 ? "s" : ""} detected automatically`}
             />
             <span className="inline-flex items-center gap-1.5 rounded-full bg-cyan-500/10 px-3 py-1 text-xs font-semibold text-cyan-500 ring-1 ring-cyan-500/20">
               📱 Live
@@ -259,7 +271,7 @@ export default function FinancePage() {
           </div>
 
           <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1 custom-scrollbar">
-            {smsExpenses.map((exp) => {
+            {sortedSmsExpenses.map((exp) => {
               const emoji = CATEGORY_EMOJI[exp.category] ?? "💰";
               const bank = exp.sms_metadata?.bank;
               const last4 = exp.sms_metadata?.account_last4;

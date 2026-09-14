@@ -258,11 +258,11 @@ class SmsExpenseAgent:
         }
 
     async def get_sms_expenses(self, user_id: str, limit: int = 30) -> list[dict]:
-        """Fetch recent SMS-auto-tracked expenses for the dashboard."""
+        """Fetch recent SMS-auto-tracked expenses for the dashboard in descending order (newest first)."""
         documents = (
             await get_collection("expenses")
             .find({"user_id": user_id, "source": "sms"})
-            .sort("created_at", -1)
+            .sort([("occurred_at", -1), ("created_at", -1), ("_id", -1)])
             .to_list(length=limit)
         )
         result = []

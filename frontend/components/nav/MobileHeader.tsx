@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 export default function MobileHeader() {
   const router = useRouter();
-  const { isDarkMode, toggleDarkMode, userName } = useDashboard();
+  const { isDarkMode, toggleDarkMode, userName, setIsBriefingModalOpen } = useDashboard();
 
   const handleLogout = () => {
     localStorage.clear();
@@ -22,6 +22,14 @@ export default function MobileHeader() {
       </div>
 
       <div className="flex items-center gap-2">
+        <button
+          onClick={() => setIsBriefingModalOpen(true)}
+          title="Daily Briefing"
+          className="flex h-9 px-2.5 items-center justify-center gap-1.5 rounded-xl bg-cyan-500/10 text-xs font-bold text-cyan-600 dark:text-cyan-400 border border-cyan-500/20 transition-all active:scale-95"
+        >
+          <span>🌅</span>
+          <span className="hidden xs:inline">Briefing</span>
+        </button>
         <button
           onClick={toggleDarkMode}
           className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 transition-all active:scale-95 dark:bg-white/5"

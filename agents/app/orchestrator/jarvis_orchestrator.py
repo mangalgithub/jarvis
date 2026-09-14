@@ -10,6 +10,7 @@ from app.agents.memory_agent import MemoryAgent
 from app.agents.stock_agent import StockAgent
 from app.agents.learning_agent import LearningAgent
 from app.agents.reminder_agent import ReminderAgent
+from app.agents.briefing_agent import BriefingAgent
 from app.core.llm import LLMUnavailableError, generate_response
 from app.core.vision import vision_service
 from app.core.state import conversation_state
@@ -29,8 +30,10 @@ memory_agent = MemoryAgent()
 stock_agent = StockAgent()
 learning_agent = LearningAgent()
 reminder_agent = ReminderAgent()
+briefing_agent = BriefingAgent()
 
 VALID_INTENTS = {
+    "daily_briefing",
     "expense_tracking",
     "health_tracking",
     "news_summary",
@@ -40,6 +43,11 @@ VALID_INTENTS = {
     "reminder_management",
     "general_chat",
 }
+
+_BRIEFING_RE = re.compile(
+    r"\b(?:daily|morning|today'?s?|evening)?\s*briefing\b|\bhow(?:'s|\s+is)\s+(?:my\s+)?day\s+looking\b|\btoday\s+with\s+jarvis\b|\bbrief\s+me\b",
+    re.IGNORECASE,
+)
 
 # Pre-LLM keyword shortcuts — catches obvious messages without a Groq round-trip
 # These cover the most common health phrases the LLM tends to miss.
@@ -258,8 +266,11 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
         msg_lower = request.message.lower()
         is_finance = any(kw in msg_lower for kw in _FINANCE_KEYWORDS)
 
+        # Briefing gets priority for morning/daily briefing questions
+        if _BRIEFING_RE.search(request.message):
+            intents, intent_source = ["daily_briefing"], "regex_shortcut"
         # Memory gets absolute priority if it matches a clear memory pattern
-        if _MEMORY_RE.search(request.message):
+        elif _MEMORY_RE.search(request.message):
             intents, intent_source = ["memory_management"], "regex_shortcut"
         elif _REMINDER_RE.search(request.message) and not is_finance:
             intents, intent_source = ["reminder_management"], "regex_shortcut"
@@ -306,6 +317,7 @@ async def run_orchestrator(request: ChatRequest) -> ChatResponse:
     }
 
     agent_map = {
+        "daily_briefing": briefing_agent,
         "expense_tracking": finance_agent,
         "news_summary": news_agent,
         "health_tracking": health_agent,

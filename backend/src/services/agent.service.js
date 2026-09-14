@@ -87,9 +87,27 @@ async function getSmsExpenses({ limit, authHeader }) {
   return response.json();
 }
 
+async function getBriefingFromAgent({ userId, authHeader }) {
+  const headers = {};
+  if (authHeader) headers["Authorization"] = authHeader;
+
+  const response = await fetch(`${AGENT_SERVICE_URL}/agent/briefing`, {
+    headers,
+  });
+
+  if (!response.ok) {
+    const err = new Error(`Agent briefing failed with status ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
+
+  return response.json();
+}
+
 module.exports = {
   sendMessageToAgent,
   getDashboardFromAgent,
   ingestSmsExpense,
   getSmsExpenses,
+  getBriefingFromAgent,
 };
