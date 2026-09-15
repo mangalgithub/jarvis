@@ -8,6 +8,7 @@ SMS-tracked vs manually-logged expenses.
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 
 from app.core.llm import LLMUnavailableError, generate_response
