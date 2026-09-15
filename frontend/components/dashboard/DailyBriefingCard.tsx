@@ -298,10 +298,10 @@ export function DailyBriefingCard({ showCard = true }: { showCard?: boolean }) {
         <div
           role="dialog"
           aria-modal="true"
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md"
+          className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center bg-slate-950/80 backdrop-blur-md"
           onClick={(e) => { if (e.target === e.currentTarget) setIsBriefingModalOpen(false); }}
         >
-          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-3xl sm:rounded-3xl border border-cyan-500/30 bg-slate-900 p-5 sm:p-6 shadow-2xl custom-scrollbar">
+          <div className="relative w-full max-w-2xl max-h-[86dvh] overflow-y-auto rounded-t-3xl sm:max-h-[90vh] sm:rounded-3xl border border-cyan-500/30 bg-slate-900 p-4 sm:p-6 shadow-2xl custom-scrollbar">
             {/* Modal header */}
             <div className="flex items-center justify-between pb-4 border-b border-white/10">
               <div className="flex items-center gap-2 min-w-0">
@@ -314,6 +314,7 @@ export function DailyBriefingCard({ showCard = true }: { showCard?: boolean }) {
               <button
                 onClick={() => setIsBriefingModalOpen(false)}
                 className="shrink-0 rounded-full bg-white/10 p-2 text-slate-400 hover:bg-white/20 hover:text-white transition"
+                aria-label="Close daily briefing"
               >
                 ✕
               </button>

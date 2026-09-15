@@ -23,7 +23,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className={!isAuthPage ? "lg:pl-64 pt-0 pb-20 lg:pb-0" : ""}>
             {children}
           </main>
-          {!isAuthPage && <DailyBriefingCard showCard={pathname === "/"} />}
+          {/* The briefing is deliberately modal-only; it never extends the chat page. */}
+          {!isAuthPage && <DailyBriefingCard showCard={false} />}
           {!isAuthPage && <MobileNav />}
         </DashboardProvider>
         <Analytics />

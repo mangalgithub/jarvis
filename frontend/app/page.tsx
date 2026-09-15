@@ -79,9 +79,9 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen max-w-[1200px] mx-auto p-4 sm:p-6 lg:p-8 space-y-6 pb-16">
+    <div className="flex h-[calc(100dvh-9rem)] min-h-[430px] flex-col max-w-[1200px] mx-auto p-4 sm:h-[calc(100dvh-8rem)] sm:min-h-[520px] sm:p-6 lg:h-screen lg:p-8 lg:pb-8">
       {/* Header */}
-      <header className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+      <header className="mb-4 flex flex-col sm:flex-row sm:items-end justify-between gap-4 lg:mb-8">
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-cyan-600 dark:text-cyan-400">Command Center</p>
           <h1 className="text-3xl font-bold tracking-tight text-slate-950 dark:text-white">Hello, {userName}</h1>
@@ -99,12 +99,12 @@ export default function Home() {
       </header>
 
       {/* Main Chat Area */}
-      <div className="flex flex-col h-[580px] sm:h-[640px] bg-white/50 backdrop-blur-md rounded-[32px] border border-slate-200/50 shadow-2xl dark:bg-slate-900/50 dark:border-white/5 overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col bg-white/50 backdrop-blur-md rounded-[28px] sm:rounded-[32px] border border-slate-200/50 shadow-2xl dark:bg-slate-900/50 dark:border-white/5 overflow-hidden">
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6 custom-scrollbar">
           {messages.map((msg, i) => (
             <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-              <div className={`max-w-[80%] rounded-[24px] px-6 py-4 text-sm font-medium leading-relaxed shadow-sm ${
+              <div className={`max-w-[85%] sm:max-w-[80%] rounded-[20px] sm:rounded-[24px] px-4 py-3 sm:px-6 sm:py-4 text-sm font-medium leading-relaxed shadow-sm ${
                 msg.role === "user"
                   ? "bg-slate-950 text-white dark:bg-white dark:text-slate-950"
                   : "bg-slate-100 text-slate-800 dark:bg-white/10 dark:text-slate-200"
@@ -153,7 +153,7 @@ export default function Home() {
         </div>
 
         {/* Quick Actions */}
-        <div className="px-6 py-4 bg-slate-50/50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 overflow-x-auto no-scrollbar">
+        <div className="px-4 py-3 sm:px-6 sm:py-4 bg-slate-50/50 dark:bg-white/5 border-t border-slate-100 dark:border-white/5 overflow-x-auto no-scrollbar">
           <div className="flex gap-2 whitespace-nowrap">
             {starterPrompts.map(p => (
               <button
@@ -187,7 +187,7 @@ export default function Home() {
         )}
 
         {/* Input Bar */}
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           <form onSubmit={handleFormSubmit} className="relative flex items-center gap-3">
             <input 
               type="file" 
