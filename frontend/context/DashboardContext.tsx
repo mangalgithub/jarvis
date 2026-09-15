@@ -353,7 +353,27 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       });
       if (!res.ok) return;
       const data = await res.json() as { expenses: Expense[]; count: number };
-      const sorted = (data.expenses || []).sort((a, b) => {
+      const rawList = data.expenses || [];
+      const seenRefs = new Set<string>();
+      const seenSigs = new Set<string>();
+      const deduplicated: Expense[] = [];
+
+      for (const exp of rawList) {
+        const ref = exp.sms_metadata?.reference_id?.trim();
+        const dateStr = (exp.occurred_at || exp.created_at || "").slice(0, 10);
+        const sig = `${exp.amount}-${(exp.description || "").trim().toLowerCase()}-${dateStr}`;
+
+        if (ref) {
+          if (seenRefs.has(ref)) continue;
+          seenRefs.add(ref);
+        } else if (seenSigs.has(sig)) {
+          continue;
+        }
+        seenSigs.add(sig);
+        deduplicated.push(exp);
+      }
+
+      const sorted = deduplicated.sort((a, b) => {
         const timeA = new Date(a.occurred_at || a.created_at || 0).getTime();
         const timeB = new Date(b.occurred_at || b.created_at || 0).getTime();
         return timeB - timeA;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { isNativeNotificationPlatform } from "@/lib/briefingNotifications";
 
 interface UseDailyBriefingNotificationOptions {
   onOpenBriefing: () => void;
@@ -16,6 +17,10 @@ export function useDailyBriefingNotification({
   useEffect(() => {
     if (typeof window === "undefined" || initialized.current) return;
     initialized.current = true;
+
+    if (isNativeNotificationPlatform()) {
+      return;
+    }
 
     const checkAndTriggerMorningNotification = () => {
       if (localStorage.getItem("jarvis_briefing_notifications_enabled") !== "true") return;

@@ -4,6 +4,11 @@ import { useDashboard } from "@/context/DashboardContext";
 import { useEffect, useState } from "react";
 import { PanelCard, SectionTitle } from "@/components/dashboard/PanelCard";
 import { DashboardLoader } from "@/components/dashboard/DashboardLoader";
+import {
+  disableDailyBriefingNotifications,
+  enableDailyBriefingNotifications,
+  isNativeNotificationPlatform,
+} from "@/lib/briefingNotifications";
 
 export default function ProfilePage() {
   const { dashboard, sendMessage } = useDashboard();
@@ -15,21 +20,17 @@ export default function ProfilePage() {
   }, []);
 
   const toggleBriefingNotifications = async () => {
-    if (!briefingNotificationsEnabled && !("Notification" in window)) {
-      setNotificationMessage("Notifications are not available on this device yet.");
-      return;
+    try {
+      const next = !briefingNotificationsEnabled;
+      const message = next
+        ? await enableDailyBriefingNotifications()
+        : await disableDailyBriefingNotifications();
+      localStorage.setItem("jarvis_briefing_notifications_enabled", String(next));
+      setBriefingNotificationsEnabled(next);
+      setNotificationMessage(message);
+    } catch (error) {
+      setNotificationMessage(error instanceof Error ? error.message : "Could not update notification settings.");
     }
-    if (!briefingNotificationsEnabled) {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        setNotificationMessage("Notification permission was not granted.");
-        return;
-      }
-    }
-    const next = !briefingNotificationsEnabled;
-    localStorage.setItem("jarvis_briefing_notifications_enabled", String(next));
-    setBriefingNotificationsEnabled(next);
-    setNotificationMessage(next ? "Morning browser reminders enabled." : "Morning browser reminders disabled.");
   };
   const memory = dashboard?.memory;
 
@@ -61,13 +62,20 @@ export default function ProfilePage() {
 
       <PanelCard className="mt-8">
         <SectionTitle title="Daily Briefing" />
-        <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            Enable a morning reminder in browsers that support notifications. The briefing itself works in both the browser and Android app.
-          </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="max-w-xl">
+            <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
+              Get your daily briefing at 8:00 AM
+            </p>
+            <p className="mt-1 text-sm leading-6 text-slate-600 dark:text-slate-400">
+              {isNativeNotificationPlatform()
+                ? "Android will show a native reminder even when the app is closed."
+                : "Browser reminders appear while Jarvis is open."}
+            </p>
+          </div>
           <button
             onClick={() => void toggleBriefingNotifications()}
-            className="shrink-0 rounded-xl bg-cyan-600 px-4 py-2 text-xs font-bold text-white transition hover:bg-cyan-500"
+            className="w-full shrink-0 rounded-xl bg-cyan-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-cyan-500 sm:w-auto"
           >
             {briefingNotificationsEnabled ? "Disable reminder" : "Enable reminder"}
           </button>

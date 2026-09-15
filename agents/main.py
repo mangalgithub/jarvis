@@ -23,6 +23,16 @@ async def create_mongodb_indexes():
         ("expenses", [("user_id", 1), ("created_at", -1)], {"name": "idx_expenses_user_created"}),
         ("expenses", [("user_id", 1), ("occurred_at", -1)], {"name": "idx_expenses_user_occurred"}),
         ("expenses", [("user_id", 1), ("category", 1), ("occurred_at", -1)], {"name": "idx_expenses_user_category_occurred"}),
+        ("expenses", [("user_id", 1), ("sms_metadata.reference_id", 1)], {
+            "name": "uniq_expenses_user_sms_ref",
+            "unique": True,
+            "partialFilterExpression": {"sms_metadata.reference_id": {"$type": "string", "$gt": ""}},
+        }),
+        ("expenses", [("user_id", 1), ("sms_metadata.raw_sms", 1)], {
+            "name": "uniq_expenses_user_sms_raw",
+            "unique": True,
+            "partialFilterExpression": {"sms_metadata.raw_sms": {"$type": "string", "$gt": ""}},
+        }),
 
         ("income", [("user_id", 1), ("occurred_at", -1)], {"name": "idx_income_user_occurred"}),
         ("budgets", [("user_id", 1), ("category", 1), ("period", 1)], {"unique": True, "name": "uniq_budgets_user_category_period"}),

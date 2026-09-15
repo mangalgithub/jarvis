@@ -35,8 +35,8 @@ allprojects {
 }
 
 // ── Java compatibility override ───────────────────────────────────────────────
-// Our installed JDK is 19. capacitor-android defaults to VERSION_21, which
-// causes "invalid source release: 21". Force all submodules to use Java 19.
+// Our installed JDK is 19. capacitor-android / plugins default to VERSION_21, which
+// causes toolchain and "invalid source release: 21" errors. Force all submodules to use Java 19.
 subprojects {
     afterEvaluate { project ->
         if (project.hasProperty('android')) {
@@ -45,6 +45,16 @@ subprojects {
                     sourceCompatibility JavaVersion.VERSION_19
                     targetCompatibility JavaVersion.VERSION_19
                 }
+            }
+        }
+        if (project.plugins.hasPlugin('kotlin-android') || project.plugins.hasPlugin('org.jetbrains.kotlin.android')) {
+            project.extensions.configure('kotlin') { ext ->
+                ext.jvmToolchain(19)
+            }
+        }
+        if (project.plugins.hasPlugin('java')) {
+            project.extensions.configure('java') { ext ->
+                ext.toolchain.languageVersion.set(JavaLanguageVersion.of(19))
             }
         }
     }

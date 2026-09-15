@@ -11,6 +11,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.core.llm import LLMUnavailableError, generate_response
+from pymongo.errors import DuplicateKeyError
 from app.core.mongodb import get_collection
 from app.core.sms_parser import parse_payment_sms
 
@@ -196,26 +197,28 @@ class SmsExpenseAgent:
             "updated_at": now,
         }
 
-        # 4. Duplicate check — reference_id, raw_sms, or same amount + merchant within 24 hours
-        ref_id = parsed.get("reference_id")
-        raw_sms = parsed.get("raw_sms")
-        one_day_ago = datetime.fromtimestamp(now.timestamp() - 86400, tz=timezone.utc)
+        # 4. Duplicate check — reference_id, raw_sms, or same amount + merchant within 7 days
+        ref_id = str(parsed.get("reference_id")).strip() if parsed.get("reference_id") else None
+        raw_sms = str(parsed.get("raw_sms")).strip() if parsed.get("raw_sms") else None
+        occurred_date = document["occurred_at"].strftime("%Y-%m-%d")
 
-        or_conditions = [
-            {
-                "amount": parsed["amount"],
-                "description": description,
-                "created_at": {"$gte": one_day_ago},
-            }
-        ]
+        or_conditions = []
         if ref_id:
             or_conditions.append({"sms_metadata.reference_id": ref_id})
+            or_conditions.append({"sms_metadata.reference_id": {"$regex": f"^{re.escape(ref_id)}$", "$options": "i"}})
         if raw_sms:
             or_conditions.append({"sms_metadata.raw_sms": raw_sms})
 
+        # Fuzzy match for same amount, merchant, and occurred date/window
+        seven_days_ago = datetime.fromtimestamp(now.timestamp() - 7 * 86400, tz=timezone.utc)
+        or_conditions.append({
+            "amount": parsed["amount"],
+            "description": {"$regex": f"^{re.escape(description)}$", "$options": "i"},
+            "created_at": {"$gte": seven_days_ago},
+        })
+
         duplicate = await get_collection("expenses").find_one({
             "user_id": user_id,
-            "source": "sms",
             "$or": or_conditions,
         })
 
@@ -230,9 +233,20 @@ class SmsExpenseAgent:
                 "message": f"Duplicate SMS expense already logged (₹{parsed['amount']} at {description}).",
             }
 
-        # 5. Insert
-        result = await get_collection("expenses").insert_one(document)
-        document["_id"] = str(result.inserted_id)
+        # 5. Insert (with DuplicateKeyError protection against concurrency race conditions)
+        try:
+            result = await get_collection("expenses").insert_one(document)
+            document["_id"] = str(result.inserted_id)
+        except DuplicateKeyError:
+            logger.info(
+                "[SmsExpenseAgent] Atomic duplicate key blocked for user %s: Ref: %s",
+                user_id, ref_id or "N/A",
+            )
+            return {
+                "success": False,
+                "expense": None,
+                "message": f"Duplicate SMS expense already logged (Ref: {ref_id or 'duplicate'}).",
+            }
 
         logger.info(
             "[SmsExpenseAgent] Logged ₹%.2f at %s (category: %s) for user %s",
@@ -258,16 +272,45 @@ class SmsExpenseAgent:
         }
 
     async def get_sms_expenses(self, user_id: str, limit: int = 30) -> list[dict]:
-        """Fetch recent SMS-auto-tracked expenses for the dashboard in descending order (newest first)."""
+        """Fetch recent SMS-auto-tracked expenses for the dashboard in descending order (newest first), deduplicated."""
+        # Query more documents to allow in-memory deduplication of any historical duplicates
         documents = (
             await get_collection("expenses")
             .find({"user_id": user_id, "source": "sms"})
             .sort([("occurred_at", -1), ("created_at", -1), ("_id", -1)])
-            .to_list(length=limit)
+            .to_list(length=max(limit * 3, 100))
         )
         result = []
+        seen_refs = set()
+        seen_signatures = set()
+
         for doc in documents:
             doc["_id"] = str(doc["_id"])
+            sms_meta = doc.get("sms_metadata") if isinstance(doc.get("sms_metadata"), dict) else {}
+            ref_id = str(sms_meta.get("reference_id") or "").strip()
+            
+            occurred = doc.get("occurred_at") or doc.get("created_at")
+            date_str = occurred.strftime("%Y-%m-%d") if hasattr(occurred, "strftime") else str(occurred)[:10]
+            amount = round(float(doc.get("amount", 0)), 2)
+            desc = str(doc.get("description", "")).strip().lower()
+            sig = (amount, desc, date_str)
+
+            is_dup = False
+            if ref_id:
+                if ref_id in seen_refs:
+                    is_dup = True
+                else:
+                    seen_refs.add(ref_id)
+
+            if not is_dup:
+                if sig in seen_signatures:
+                    is_dup = True
+                else:
+                    seen_signatures.add(sig)
+
+            if is_dup:
+                continue
+
             if "occurred_at" in doc and hasattr(doc["occurred_at"], "isoformat"):
                 doc["occurred_at"] = doc["occurred_at"].isoformat()
             if "created_at" in doc and hasattr(doc["created_at"], "isoformat"):
@@ -275,6 +318,8 @@ class SmsExpenseAgent:
             if "updated_at" in doc and hasattr(doc["updated_at"], "isoformat"):
                 doc["updated_at"] = doc["updated_at"].isoformat()
             result.append(doc)
+            if len(result) >= limit:
+                break
         return result
 
     async def deduplicate_expenses(self, user_id: str) -> dict:

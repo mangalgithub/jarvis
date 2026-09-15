@@ -118,8 +118,19 @@ export function useSmsExpenseTracker({
 
       if (paymentSms.length === 0) return;
 
-      // Send in sequence to avoid hammering the backend
+      // Deduplicate inbox messages locally before sending to prevent duplicate dispatch
+      const seen = new Set<string>();
+      const distinctMessages: SmsMessage[] = [];
       for (const msg of paymentSms) {
+        const key = (msg.body || "").trim();
+        if (key && !seen.has(key)) {
+          seen.add(key);
+          distinctMessages.push(msg);
+        }
+      }
+
+      // Send in sequence to avoid hammering the backend
+      for (const msg of distinctMessages) {
         await sendSmsToBackend(msg);
         // Small delay between requests
         await new Promise(r => setTimeout(r, 200));
