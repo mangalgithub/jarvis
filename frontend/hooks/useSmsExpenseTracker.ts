@@ -61,6 +61,7 @@ export function useSmsExpenseTracker({
   onError,
 }: UseSmsExpenseTrackerOptions) {
   const initialized = useRef(false);
+  const initializedToken = useRef<string | null>(null);
   const listenerRef = useRef<{ remove: () => void } | null>(null);
 
   // ─── Save token to SharedPreferences for SmsListenerService ────────────────
@@ -114,7 +115,13 @@ export function useSmsExpenseTracker({
   const syncInbox = useCallback(async () => {
     try {
       const { messages } = await SmsPlugin.readInbox({ count: 50 });
-      const paymentSms = messages.filter(m => isPaymentSms(m.sender, m.body));
+      const lastSyncRaw = localStorage.getItem("jarvis_sms_inbox_last_sync");
+      const lastSync = lastSyncRaw ? new Date(lastSyncRaw).getTime() : 0;
+      const paymentSms = messages.filter((m) => {
+        if (!isPaymentSms(m.sender, m.body)) return false;
+        const messageTime = new Date(m.timestamp).getTime();
+        return !Number.isFinite(messageTime) || messageTime > lastSync;
+      });
 
       if (paymentSms.length === 0) return;
 
@@ -135,6 +142,16 @@ export function useSmsExpenseTracker({
         // Small delay between requests
         await new Promise(r => setTimeout(r, 200));
       }
+
+      // The backend still performs authoritative duplicate checks. This cursor
+      // avoids re-uploading the same inbox history on every app launch.
+      const newestMessageTime = messages.reduce((newest, msg) => {
+        const timestamp = new Date(msg.timestamp).getTime();
+        return Number.isFinite(timestamp) ? Math.max(newest, timestamp) : newest;
+      }, lastSync);
+      if (newestMessageTime > lastSync) {
+        localStorage.setItem("jarvis_sms_inbox_last_sync", new Date(newestMessageTime).toISOString());
+      }
     } catch (e) {
       console.error("[SmsTracker] Inbox sync failed:", e);
     }
@@ -142,10 +159,11 @@ export function useSmsExpenseTracker({
 
   // ─── Initialize permissions + listener ───────────────────────────────────
   useEffect(() => {
-    if (!isAndroidNative() || !token || initialized.current) return;
+    if (!isAndroidNative() || !token || (initialized.current && initializedToken.current === token)) return;
 
     const init = async () => {
       initialized.current = true;
+      initializedToken.current = token;
 
       // Persist token for SmsListenerService (background Java code)
       persistTokenToNative(token);
@@ -181,7 +199,6 @@ export function useSmsExpenseTracker({
     return () => {
       listenerRef.current?.remove();
       listenerRef.current = null;
-      initialized.current = false;
     };
   }, [token, persistTokenToNative, syncInbox, sendSmsToBackend, onError]);
 }

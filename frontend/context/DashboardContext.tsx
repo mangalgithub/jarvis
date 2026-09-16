@@ -228,6 +228,7 @@ interface DashboardContextType {
   briefing: DailyBriefingData | null;
   isBriefingLoading: boolean;
   loadBriefing: (forceRefresh?: boolean) => Promise<void>;
+  openBriefing: () => void;
   isBriefingModalOpen: boolean;
   setIsBriefingModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
 }
@@ -391,17 +392,19 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
 
   // ── SMS Expense Tracker hook (Android native only) ───────────────────────
   const token = typeof window !== "undefined" ? localStorage.getItem("jarvis_token") : null;
+  const handleSmsExpenseTracked = useCallback((expense: { amount: number; description: string; category: string; bank: string }) => {
+    setLastSmsExpense(expense);
+    // Refresh SMS expenses list + dashboard after new auto-track
+    void loadSmsExpenses();
+    void loadDashboard();
+    // Clear the "last tracked" toast after 5 seconds
+    setTimeout(() => setLastSmsExpense(null), 5000);
+  }, [loadDashboard, loadSmsExpenses]);
+
   useSmsExpenseTracker({
     apiBaseUrl: API_BASE_URL,
     token,
-    onExpenseTracked: (expense) => {
-      setLastSmsExpense(expense);
-      // Refresh SMS expenses list + dashboard after new auto-track
-      void loadSmsExpenses();
-      void loadDashboard();
-      // Clear the "last tracked" toast after 5 seconds
-      setTimeout(() => setLastSmsExpense(null), 5000);
-    },
+    onExpenseTracked: handleSmsExpenseTracked,
   });
 
   // WebSocket for reminders
@@ -541,7 +544,8 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  useEffect(() => {
+  const openBriefing = useCallback(() => {
+    setIsBriefingModalOpen(true);
     void loadBriefing();
   }, [loadBriefing]);
 
@@ -571,6 +575,7 @@ export function DashboardProvider({ children }: { children: ReactNode }) {
       briefing,
       isBriefingLoading,
       loadBriefing,
+      openBriefing,
       isBriefingModalOpen,
       setIsBriefingModalOpen,
     }}>

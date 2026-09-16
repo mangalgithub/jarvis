@@ -417,4 +417,7 @@ async def get_daily_briefing(
         return data
     except Exception as exc:
         logger.error("[dashboard] get_daily_briefing failed: %s", exc, exc_info=True)
-        return await briefing_agent.get_briefing_data(user_id=user_id, user_name="User")
+        # Do not make a second AI request after a failed generation (for example
+        # after a Groq 429). The client can retry later and the normal Redis/Mongo
+        # lookup will make a successful briefing fast on subsequent opens.
+        raise HTTPException(status_code=503, detail="Daily briefing is temporarily unavailable.") from exc

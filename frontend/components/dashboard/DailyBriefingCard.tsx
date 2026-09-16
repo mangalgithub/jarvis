@@ -94,7 +94,35 @@ export function DailyBriefingCard({ showCard = true }: { showCard?: boolean }) {
     }
   };
 
-  // ── Loading skeleton ──────────────────────────────────────────────────
+  // ── Loading state ─────────────────────────────────────────────────────
+  // The briefing is intentionally fetched only when the user opens it.
+  if (!briefing && isBriefingModalOpen) {
+    return (
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Loading daily briefing"
+        className="fixed inset-0 z-[70] flex items-end justify-center bg-slate-950/80 backdrop-blur-md sm:items-center"
+        onClick={(event) => { if (event.target === event.currentTarget) setIsBriefingModalOpen(false); }}
+      >
+        <div className="w-full max-w-md rounded-t-3xl border border-cyan-500/30 bg-slate-900 p-6 text-center shadow-2xl sm:rounded-3xl">
+          <button
+            onClick={() => setIsBriefingModalOpen(false)}
+            className="absolute right-5 top-5 rounded-full bg-white/10 p-2 text-slate-400 transition hover:bg-white/20 hover:text-white"
+            aria-label="Close daily briefing"
+          >
+            ✕
+          </button>
+          <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-2 border-cyan-400/20 border-t-cyan-400" />
+          <p className="font-semibold text-white">{isBriefingLoading ? "Preparing your daily briefing…" : "Briefing unavailable"}</p>
+          <p className="mt-2 text-sm text-slate-400">
+            {isBriefingLoading ? "Checking today’s saved briefing first." : "Please close this and try again shortly."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   if (!briefing && isBriefingLoading && showCard) {
     return (
       <div className="rounded-3xl border border-cyan-500/20 bg-gradient-to-br from-cyan-950/40 via-slate-900/60 to-slate-950/80 p-5 shadow-2xl backdrop-blur-xl animate-pulse">

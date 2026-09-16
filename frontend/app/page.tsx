@@ -28,12 +28,12 @@ export default function Home() {
     liveReminders,
     acknowledgeReminder,
     userName,
-    setIsBriefingModalOpen,
+    openBriefing,
   } = useDashboard();
 
   // Initialize automated morning notification
   useDailyBriefingNotification({
-    onOpenBriefing: () => setIsBriefingModalOpen(true),
+    onOpenBriefing: openBriefing,
     userName,
   });
 

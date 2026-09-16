@@ -16,7 +16,7 @@ const navItems = [
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { userName, isDarkMode, toggleDarkMode, setIsBriefingModalOpen } = useDashboard();
+  const { userName, isDarkMode, toggleDarkMode, openBriefing } = useDashboard();
 
   const handleLogout = () => {
     localStorage.clear();
@@ -46,7 +46,7 @@ export default function Sidebar() {
         {/* Daily Briefing Quick Launcher */}
         <div className="mb-6">
           <button
-            onClick={() => setIsBriefingModalOpen(true)}
+            onClick={openBriefing}
             className="group flex w-full items-center justify-between rounded-2xl border border-cyan-500/30 bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10 p-3.5 text-left transition-all hover:border-cyan-400/60 hover:from-cyan-500/20 hover:to-purple-500/20 active:scale-98 dark:border-cyan-400/20"
           >
             <div className="flex items-center gap-2.5">

@@ -12,6 +12,7 @@ import re
 from datetime import datetime, timezone
 
 from app.core.llm import LLMUnavailableError, generate_response
+from app.core.redis import cache_get, cache_set
 from pymongo.errors import DuplicateKeyError
 from app.core.mongodb import get_collection
 from app.core.sms_parser import parse_payment_sms
@@ -108,6 +109,37 @@ def _keyword_categorize(merchant: str, description: str) -> str:
     return "Other"
 
 
+def _merchant_cache_key(merchant: str, payment_method: str) -> str | None:
+    """Create a stable, non-sensitive cache key for a merchant category."""
+    normalized_merchant = re.sub(r"\s+", " ", merchant.strip().lower())
+    normalized_method = re.sub(r"\s+", " ", payment_method.strip().lower())
+    if not normalized_merchant:
+        return None
+    # Merchant names and payment methods are short, but quote them so Redis keys
+    # remain predictable for punctuation and non-ASCII names.
+    return f"sms:merchant-category:{normalized_method}:{normalized_merchant}"
+
+
+async def _categorize_merchant(merchant: str, payment_method: str) -> str:
+    """Categorize once per merchant, using Redis before an optional AI fallback."""
+    keyword_category = _keyword_categorize(merchant, "")
+    if keyword_category != "Other":
+        return keyword_category
+
+    cache_key = _merchant_cache_key(merchant, payment_method)
+    if cache_key:
+        cached = await cache_get(cache_key)
+        if isinstance(cached, dict) and cached.get("category") in EXPENSE_CATEGORIES:
+            return cached["category"]
+
+    category = await _ai_categorize(merchant, payment_method)
+    if cache_key:
+        # Cache both AI classifications and the deterministic "Other" fallback.
+        # This prevents the same merchant from consuming tokens on every app launch.
+        await cache_set(cache_key, {"category": category}, expire_seconds=90 * 24 * 60 * 60)
+    return category
+
+
 async def _ai_categorize(merchant: str, payment_method: str) -> str:
     """Use Groq to categorize if merchant is known."""
     if not merchant:
@@ -163,45 +195,14 @@ class SmsExpenseAgent:
                 "message": "SMS is a credit/incoming transaction — skipping.",
             }
 
-        # 2. Categorize
+        # 2. Deduplicate BEFORE categorization.  Categorization can call the LLM,
+        # so duplicates must not spend tokens just to be discarded afterwards.
         merchant = parsed.get("merchant") or ""
         payment_method = parsed.get("payment_method", "")
-        # Try keyword first (faster), fall back to AI
-        category = _keyword_categorize(merchant, "")
-        if category == "Other" and merchant:
-            category = await _ai_categorize(merchant, payment_method)
-
-        # 3. Build expense document
         now = datetime.now(timezone.utc)
         description = merchant or f"Payment via {payment_method}"
-
-        document = {
-            "user_id": user_id,
-            "amount": parsed["amount"],
-            "description": description,
-            "category": category,
-            "payment_method": payment_method,
-            "source": "sms",  # Distinguishes from manually-logged expenses
-            "sms_metadata": {
-                "sender": sender,
-                "bank": parsed.get("bank"),
-                "account_last4": parsed.get("account_last4"),
-                "reference_id": parsed.get("reference_id"),
-                "raw_sms": parsed["raw_sms"],
-            },
-            "occurred_at": (
-                datetime.fromisoformat(parsed["timestamp"])
-                if parsed.get("timestamp")
-                else now
-            ),
-            "created_at": now,
-            "updated_at": now,
-        }
-
-        # 4. Duplicate check — reference_id, raw_sms, or same amount + merchant within 7 days
         ref_id = str(parsed.get("reference_id")).strip() if parsed.get("reference_id") else None
         raw_sms = str(parsed.get("raw_sms")).strip() if parsed.get("raw_sms") else None
-        occurred_date = document["occurred_at"].strftime("%Y-%m-%d")
 
         or_conditions = []
         if ref_id:
@@ -233,6 +234,34 @@ class SmsExpenseAgent:
                 "expense": None,
                 "message": f"Duplicate SMS expense already logged (₹{parsed['amount']} at {description}).",
             }
+
+        # 3. Categorize only genuinely new expenses. Keyword and Redis hits never
+        # contact Groq; only a new, unknown merchant uses the AI fallback.
+        category = await _categorize_merchant(merchant, payment_method) if merchant else "Other"
+
+        # 4. Build the document only after the no-cost duplicate check succeeds.
+        document = {
+            "user_id": user_id,
+            "amount": parsed["amount"],
+            "description": description,
+            "category": category,
+            "payment_method": payment_method,
+            "source": "sms",  # Distinguishes from manually-logged expenses
+            "sms_metadata": {
+                "sender": sender,
+                "bank": parsed.get("bank"),
+                "account_last4": parsed.get("account_last4"),
+                "reference_id": parsed.get("reference_id"),
+                "raw_sms": parsed["raw_sms"],
+            },
+            "occurred_at": (
+                datetime.fromisoformat(parsed["timestamp"])
+                if parsed.get("timestamp")
+                else now
+            ),
+            "created_at": now,
+            "updated_at": now,
+        }
 
         # 5. Insert (with DuplicateKeyError protection against concurrency race conditions)
         try:
